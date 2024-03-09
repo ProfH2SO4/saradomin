@@ -1,3 +1,10 @@
+FASTQ_DIR = "./test_data/fastq/hg19"
+HIC_ALL_PAIRS_DIR = "./test_data/hic_pro/hg19"
+OUTPUT_DIR = "./output"
+
+PERCENTAGE_OF_TEST_DATA = 10
+RANDOM_SPLIT = False
+
 
 LOG_CONFIG = {
     "version": 1,
