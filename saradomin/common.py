@@ -29,15 +29,9 @@ def find_r1_r2_files(dir_path: str) -> tuple[str, str]:
 
 
 def add_txt_extension(file_path: str) -> str:
-    file_name = os.path.basename(file_path)
-
-    name_parts = file_name.split('.', 1)
-
-    if len(name_parts) > 1:
-        new_file_name = name_parts[0] + '.txt' + '.' + name_parts[1]
-    else:
-        new_file_name = file_name + '.txt'
-    return new_file_name
+    file_name: str = os.path.basename(file_path)
+    name_parts: list[str] = file_name.split('.', 1)
+    return name_parts[0] + '.txt'
 
 
 def find_all_valid_pairs_file(dir_path: str) -> str:
@@ -45,3 +39,9 @@ def find_all_valid_pairs_file(dir_path: str) -> str:
         if file.endswith('.allValidPairs'):
             full_path = os.path.join(dir_path, file)
             return full_path
+
+
+def get_position_feature(read_vector_schema: list[str], feature_name: str) -> int:
+    position_from_start = read_vector_schema.index(feature_name)
+    position_from_end = len(read_vector_schema) - position_from_start - 1
+    return position_from_end

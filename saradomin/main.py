@@ -7,7 +7,7 @@ import log
 
 from . import struct as st
 from .common import create_file_if_not_exists
-from .transform import turn_data_to_vectors
+from .transform import transform_data_to_vectors
 
 
 __version__ = [0, 1, 0]
@@ -63,5 +63,9 @@ def run():
         create_file_if_not_exists(file_path)
     log.set_up_logger(parsed_config.LOG_CONFIG)
 
-    turn_data_to_vectors(parsed_config.FASTQ_DIR, parsed_config.HIC_ALL_PAIRS_DIR, parsed_config.OUTPUT_DIR, parsed_config.PERCENTAGE_OF_TEST_DATA)
+    transform_data_to_vectors(parsed_config.FASTQ_DIR,
+                              parsed_config.HIC_ALL_PAIRS_DIR,
+                              parsed_config.OUTPUT_DIR,
+                              parsed_config.PERCENTAGE_OF_TEST_DATA,
+                              __version__)
 
