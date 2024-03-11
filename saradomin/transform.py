@@ -156,8 +156,8 @@ def transform_data_to_vectors(fastq_dir: str,
         valid_pairs_path: str = common.find_all_valid_pairs_file(f"{hic_pro_dir}/{entry}")
 
         read_id_counter: dict[str, int] = {}
-        output_r1_path: str = f"{output_dir}/{common.add_txt_extension(fastq_r1_path)}"
-        output_r2_path: str = f"{output_dir}/{common.add_txt_extension(fastq_r2_path)}"
+        output_r1_path: str = f"{output_dir}/{entry}/{common.add_txt_extension(fastq_r1_path)}"
+        output_r2_path: str = f"{output_dir}/{entry}/{common.add_txt_extension(fastq_r2_path)}"
         transform_one_read(fastq_r1_path,
                            valid_pairs_path,
                            output_r1_path,
