@@ -2,7 +2,7 @@ FASTQ_DIR = "./test_data/fastq"
 HIC_ALL_PAIRS_DIR = "./test_data/hic_pro"
 OUTPUT_DIR = "./output"
 
-PERCENTAGE_OF_TEST_DATA = 0.1
+TRAIN_DATA_PERCENTAGE = 0.9
 RANDOM_SPLIT = False
 
 
