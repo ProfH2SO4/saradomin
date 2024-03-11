@@ -45,3 +45,16 @@ def get_position_feature(read_vector_schema: list[str], feature_name: str) -> in
     position_from_start = read_vector_schema.index(feature_name)
     position_from_end = len(read_vector_schema) - position_from_start - 1
     return position_from_end
+
+
+def get_key_from_value(d, val) -> any:
+    for key, value in d.items():
+        if value == val:
+            return key
+    return None  # Return None or an appropriate value if the value isn't found
+
+
+def insert_test_before_extension(path: str) -> str:
+    """Insert '_test' before the '.txt' extension in the file path."""
+    name, ext = os.path.splitext(path)
+    return f"{name}_test{ext}"
