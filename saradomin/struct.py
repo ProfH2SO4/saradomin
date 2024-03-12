@@ -6,6 +6,7 @@ class Config:
     FASTQ_DIR: str
     HIC_ALL_PAIRS_DIR: str
     OUTPUT_DIR: str
-    PERCENTAGE_OF_TEST_DATA: int
+    ADD_HIC_OUTPUT: bool
+    TRAIN_DATA_PERCENTAGE: int
     RANDOM_SPLIT: bool
     LOG_CONFIG: dict

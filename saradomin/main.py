@@ -66,6 +66,7 @@ def run():
     transform_data_to_vectors(parsed_config.FASTQ_DIR,
                               parsed_config.HIC_ALL_PAIRS_DIR,
                               parsed_config.OUTPUT_DIR,
-                              parsed_config.PERCENTAGE_OF_TEST_DATA,
+                              parsed_config.ADD_HIC_OUTPUT,
+                              parsed_config.TRAIN_DATA_PERCENTAGE,
                               __version__)
 

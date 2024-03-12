@@ -18,14 +18,14 @@ def create_file_header(
         f"#DATE={datetime.utcnow().isoformat()}\n"
         f"#pre_processing_version={version}\n"
         f"#{mapping}\n"
-        f"#read_schema={read_vector_schema}\n"
+        f"#row_schema={read_vector_schema}\tUID\n"
         "####END####\n"
     )
     with open(path_to_file, "w") as f:
         f.write(header_)
 
 
-def one_hot_encode_sequence(sequence: str):
+def encode_sequence(sequence: str):
     """One-hot encode the entire nucleotide sequence."""
     mapping = {'A': "000", 'C': "001", 'G': "010", 'T': "011", 'N': "100"}
     encoded_sequence = []
@@ -58,16 +58,12 @@ def save_fastq(fastq_read_path: str,
                 read_id_counter[read_id] = uid_counter
                 uid_counter += 1
                 # One-hot encode the entire sequence
-                encoded_sequence = one_hot_encode_sequence(sequence_line)
-                read_vector = encoded_sequence + [0] * (len(read_vector_schema) - 1)
+                encoded_sequence = encode_sequence(sequence_line)
+                read_vector = encoded_sequence + [0]
                 # Calculate the average PHRED score for the read
                 average_phred_score = calculate_average_phred(quality_line)
-                pos_phred_from_end = (len(read_vector) - 1) - common.get_position_feature(read_vector_schema, "PHRED_SCORE")
-                read_vector[pos_phred_from_end] = average_phred_score
-
-                pos_uid_from_end = (len(read_vector) - 1) - common.get_position_feature(read_vector_schema, "UID")
-                read_vector[pos_uid_from_end] = read_id_counter[read_id]
-                output_file.write(str(read_vector) + '\n')
+                read_vector[len(read_vector) - 1] = average_phred_score
+                output_file.write(f"{str(read_vector)}\t{read_id_counter[read_id]}\n")
 
 
 def insert_valid_pair(line_vector: list, valid_pair_pos: int, genomic_distance_pos: int, genomic_distance: int) -> None:
@@ -134,22 +130,25 @@ def transform_one_read(fastq_read_path: str,
                        output_file_path: str,
                        read_vector_schema: list[str],
                        read_id_counter: dict[str, int],
+                       add_hic_output: bool,
                        version: list[int]) -> None:
     common.create_file_if_not_exists(output_file_path)
     create_file_header(output_file_path, read_vector_schema, version)
 
     save_fastq(fastq_read_path, output_file_path, read_vector_schema, read_id_counter)
-
-    insert_all_valid_pairs(hic_pro_valid_pairs_path, output_file_path, read_vector_schema, read_id_counter)
+    if add_hic_output:
+        insert_all_valid_pairs(hic_pro_valid_pairs_path, output_file_path, read_vector_schema, read_id_counter)
 
 
 def transform_data_to_vectors(fastq_dir: str,
                               hic_pro_dir: str,
                               output_dir: str,
+                              add_hic_output: bool,
                               train_data_percentage: float,
                               version_: list[int],
                               ) -> None:
-    read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE", "GENOMIC_DISTANCE", "VALID_PAIR", "UID"]
+    #read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE", "GENOMIC_DISTANCE", "VALID_PAIR", "UID"]
+    read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE"]
     for entry in os.listdir(fastq_dir):
         fastq_pair_dir_path = os.path.join(fastq_dir, entry)
         fastq_r1_path, fastq_r2_path = common.find_r1_r2_files(fastq_pair_dir_path)
@@ -163,12 +162,14 @@ def transform_data_to_vectors(fastq_dir: str,
                            output_r1_path,
                            read_vector_schema,
                            read_id_counter,
+                           add_hic_output,
                            version_)
         transform_one_read(fastq_r2_path,
                            valid_pairs_path,
                            output_r2_path,
                            read_vector_schema,
                            read_id_counter,
+                           add_hic_output,
                            version_)
         test_r1_path: str = common.insert_test_before_extension(output_r1_path)
         test_r2_path: str = common.insert_test_before_extension(output_r2_path)
