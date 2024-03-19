@@ -1,11 +1,9 @@
 from types import ModuleType
 from os.path import isfile
-import os
 
 import config
-import log
 
-from . import struct as st
+from . import struct as st, log
 from .common import create_file_if_not_exists
 from .transform import transform_data_to_vectors
 
@@ -68,5 +66,6 @@ def run():
                               parsed_config.OUTPUT_DIR,
                               parsed_config.ADD_HIC_OUTPUT,
                               parsed_config.TRAIN_DATA_PERCENTAGE,
+                              parsed_config.RIGHT_PAIR_PERCENTAGE,
                               __version__)
 

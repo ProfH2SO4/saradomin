@@ -1,18 +1,20 @@
-import os
+import os, shutil
 import ast
+import random
 from datetime import datetime
 
 from . import common
+from .profiler import profiler
 
 __all__ = ["transform_data_to_vectors"]
 
 
 def create_file_header(
-    path_to_file: str,
-    read_vector_schema: list[str],
-    version: list[int],
+        path_to_file: str,
+        read_vector_schema: list[str],
+        version: list[int],
 ) -> None:
-    mapping = {'A': "000", 'C': "001", 'G': "010", 'T': "011", 'N': "100"}
+    mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4}
     header_: str = (
         "#HEADER#\n"
         f"#DATE={datetime.utcnow().isoformat()}\n"
@@ -27,20 +29,19 @@ def create_file_header(
 
 def encode_sequence(sequence: str):
     """One-hot encode the entire nucleotide sequence."""
-    mapping = {'A': "000", 'C': "001", 'G': "010", 'T': "011", 'N': "100"}
+    mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4}
     encoded_sequence = []
     for nucleotide in sequence:
         encoded_sequence.append(mapping.get(nucleotide.upper(), "100"))  # Extend to flatten the one-hot encoding
     return encoded_sequence
 
 
-def calculate_average_phred(quality_string: str) -> float:
-    """Calculate the average PHRED quality score for the read."""
-    total_score = sum(ord(q) - 33 for q in quality_string)  # Convert ASCII to PHRED score
-    average_score = total_score / len(quality_string)
-    return round(average_score, 2)
+def convert_ascii_score_to_int(quality_string: str) -> list[int]:
+    score: list[int] = [ord(q) for q in quality_string]  # Convert ASCII to PHRED score
+    return score
 
 
+@profiler
 def save_fastq(fastq_read_path: str,
                output_file_path: str,
                read_vector_schema: list[str],
@@ -54,16 +55,16 @@ def save_fastq(fastq_read_path: str,
                 next(fastq_file)  # Skip the '+' line
                 quality_line = next(fastq_file).strip()  # PHRED quality scores
 
-                # Update read_id_counter
-                read_id_counter[read_id] = uid_counter
-                uid_counter += 1
+                if read_id not in read_id_counter:
+                    read_id_counter[read_id] = uid_counter
+                    uid_counter += 1
                 # One-hot encode the entire sequence
                 encoded_sequence = encode_sequence(sequence_line)
-                read_vector = encoded_sequence + [0]
-                # Calculate the average PHRED score for the read
-                average_phred_score = calculate_average_phred(quality_line)
-                read_vector[len(read_vector) - 1] = average_phred_score
-                output_file.write(f"{str(read_vector)}\t{read_id_counter[read_id]}\n")
+                score: list[int] = convert_ascii_score_to_int(quality_line)
+
+                output_file.write(f"{read_id_counter[read_id]}\n")
+                output_file.write(f"{str(encoded_sequence)}\n")
+                output_file.write(f"{str(score)}\n")
 
 
 def insert_valid_pair(line_vector: list, valid_pair_pos: int, genomic_distance_pos: int, genomic_distance: int) -> None:
@@ -83,7 +84,6 @@ def insert_all_valid_pairs(hic_pro_valid_pairs_path: str,
             read_id: str = columns[0]
             genomic_distance = columns[-5]  # Fifth element from the end
             valid_pairs_dict[read_id] = {"genomic_distance": genomic_distance}
-
 
     uid_index_from_end: int = common.get_position_feature(read_vector_schema, "UID")
     genomic_distance_index_from_end: int = common.get_position_feature(read_vector_schema, "GENOMIC_DISTANCE")
@@ -108,21 +108,93 @@ def insert_all_valid_pairs(hic_pro_valid_pairs_path: str,
     os.replace(temp_file_path, output_file_path)
 
 
+@profiler
 def split_file(original_file, new_file, train_data_percentage: float) -> None:
+    header_lines = []
 
+    # Read the original file to extract header lines and determine the split index
     with open(original_file, 'r') as file:
-        lines = file.readlines()
-
-    total_lines = len(lines)
+        for line in file:
+            if line.startswith('####END####'):
+                header_lines.append(line)
+                break
+            header_lines.append(line)
+        total_lines = sum(1 for _ in file) + len(header_lines)  # Adjust total_lines to include headers
     split_index = int(total_lines * train_data_percentage)
 
-    with open(original_file, 'w') as file:
-        for line in lines[:split_index]:
-            file.write(line)
+    if split_index % 3 != 0:  # Adjust to avoid splitting a trio
+        split_index += 3 - (split_index % 3)
 
-    with open(new_file, 'w') as file:
-        for line in lines[split_index:]:
-            file.write(line)
+    # Use a temporary file to store the first part
+    temp_file = original_file + '.tmp'
+
+    # Process the original file line by line, preserving headers in both files
+    with open(original_file, 'r') as file, open(temp_file, 'w') as temp, open(new_file, 'w') as new_f:
+        # Write header lines to both files
+        for header in header_lines:
+            temp.write(header)
+            new_f.write(header)
+
+        # Skip header lines already read
+        _ = [next(file) for _ in range(len(header_lines))]
+
+        # Split the remaining lines between the original (temp) and new file
+        for i, line in enumerate(file, start=len(header_lines)):
+            if i < split_index:
+                temp.write(line)
+            else:
+                new_f.write(line)
+
+    # Replace the original file with the temporary file containing the first part
+    shutil.move(temp_file, original_file)
+
+
+@profiler
+def shuffle_data_in_file(file_path: str, right_pair_percentage: float):
+    index_file = file_path + '.idx'
+    temp_file = file_path + '.tmp'
+
+    # Indexing Phase
+    with open(file_path, 'r') as file, open(index_file, 'w') as idx:
+        pos = file.tell()
+        line = file.readline()
+        while line:
+            if not line.startswith('#') and not line.startswith('####END####'):
+                idx.write(f"{pos}\n")
+                file.readline()  # Skip next 2 lines belonging to the same block
+                file.readline()
+            pos = file.tell()
+            line = file.readline()
+
+    # Shuffling Phase with right_pair_percentage consideration
+    with open(index_file, 'r') as idx:
+        indices = idx.readlines()
+        # Calculate the cutoff for the number of triads to remain in place
+        cutoff = int(len(indices) * right_pair_percentage)
+        # Separate the indices to shuffle and to keep
+        to_keep = indices[:cutoff]
+        to_shuffle = indices[cutoff:]
+        random.shuffle(to_shuffle)
+        # Combine back, keeping the specified percentage in original position
+        indices = to_keep + to_shuffle
+
+    # Reconstruction Phase
+    with open(file_path, 'r') as file, open(temp_file, 'w') as out:
+        # Write the header
+        for line in file:
+            if not line.startswith('#'):
+                break
+            out.write(line)
+
+        # Write the data blocks based on the adjusted indices
+        for index in indices:
+            file.seek(int(index))
+            for _ in range(3):  # Write each block of 3 lines
+                out.write(file.readline())
+
+    # Replace the original file with the shuffled data
+    shutil.move(temp_file, file_path)
+    os.remove(index_file)  # Clean up the index file
 
 
 def transform_one_read(fastq_read_path: str,
@@ -140,14 +212,16 @@ def transform_one_read(fastq_read_path: str,
         insert_all_valid_pairs(hic_pro_valid_pairs_path, output_file_path, read_vector_schema, read_id_counter)
 
 
+@profiler
 def transform_data_to_vectors(fastq_dir: str,
                               hic_pro_dir: str,
                               output_dir: str,
                               add_hic_output: bool,
                               train_data_percentage: float,
+                              right_pair_percentage: float,
                               version_: list[int],
                               ) -> None:
-    #read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE", "GENOMIC_DISTANCE", "VALID_PAIR", "UID"]
+    # read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE", "GENOMIC_DISTANCE", "VALID_PAIR", "UID"]
     read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE"]
     for entry in os.listdir(fastq_dir):
         fastq_pair_dir_path = os.path.join(fastq_dir, entry)
@@ -174,9 +248,8 @@ def transform_data_to_vectors(fastq_dir: str,
         test_r1_path: str = common.insert_test_before_extension(output_r1_path)
         test_r2_path: str = common.insert_test_before_extension(output_r2_path)
 
+
+        shuffle_data_in_file(output_r2_path, right_pair_percentage)
+
         split_file(output_r1_path, test_r1_path, train_data_percentage)
         split_file(output_r2_path, test_r2_path, train_data_percentage)
-
-
-
-

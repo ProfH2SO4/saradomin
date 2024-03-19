@@ -2,10 +2,11 @@ FASTQ_DIR = "./test_data/fastq"
 HIC_ALL_PAIRS_DIR = "./test_data/hic_pro"
 OUTPUT_DIR = "./output"
 
-ADD_HIC_OUTPUT = False
+ADD_HIC_OUTPUT = False  # Keep False
+
 
 TRAIN_DATA_PERCENTAGE = 0.9
-RANDOM_SPLIT = False
+RIGHT_PAIR_PERCENTAGE = 0.4
 
 
 LOG_CONFIG = {

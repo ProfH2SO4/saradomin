@@ -8,5 +8,5 @@ class Config:
     OUTPUT_DIR: str
     ADD_HIC_OUTPUT: bool
     TRAIN_DATA_PERCENTAGE: int
-    RANDOM_SPLIT: bool
+    RIGHT_PAIR_PERCENTAGE: float
     LOG_CONFIG: dict

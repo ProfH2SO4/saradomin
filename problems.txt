@@ -1,0 +1,11 @@
+# Found Problems:
+
+when file size is higher than RAM. problem in function `shuffle_data_in_file`
+
+
+
+
+
+
+# Solved
+- MIssing header in test

@@ -1,1 +1,2 @@
+psutil==2.*
 pre-commit
