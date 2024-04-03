@@ -1,6 +1,7 @@
 import os, shutil
 import ast
 import random
+import tempfile
 from datetime import datetime
 
 from . import common
@@ -198,23 +199,98 @@ def shuffle_data_in_file(file_path: str, right_pair_percentage: float):
 
 
 def transform_one_read(fastq_read_path: str,
-                       hic_pro_valid_pairs_path: str,
                        output_file_path: str,
                        read_vector_schema: list[str],
                        read_id_counter: dict[str, int],
                        add_hic_output: bool,
-                       version: list[int]) -> None:
+                       version: list[int],
+                       ) -> None:
     common.create_file_if_not_exists(output_file_path)
     create_file_header(output_file_path, read_vector_schema, version)
 
     save_fastq(fastq_read_path, output_file_path, read_vector_schema, read_id_counter)
     if add_hic_output:
-        insert_all_valid_pairs(hic_pro_valid_pairs_path, output_file_path, read_vector_schema, read_id_counter)
+        insert_all_valid_pairs(None, output_file_path, read_vector_schema, read_id_counter)
+
+
+def shuffle_triples_in_file(file_path: str):
+    """
+    Shuffle triples in a file and overwrite the original file with the shuffled data.
+
+    Parameters:
+    - file_path: Path to the file whose triples are to be shuffled.
+    """
+    triples = []
+
+    # Read the file and group lines into triples
+    with open(file_path, 'r') as file:
+        triple = []
+        for line in file:
+            triple.append(line)
+            if len(triple) == 3:  # Check if the triple is complete
+                triples.append(triple)
+                triple = []
+
+        # Handle case where the last group might not be a complete triple
+        if triple:
+            triples.append(triple)
+
+    # Shuffle the triples
+    random.shuffle(triples)
+
+    # Overwrite the original file with shuffled triples
+    with open(file_path, 'w') as file:
+        for triple in triples:
+            for line in triple:
+                file.write(line)
+
+def shuffle_triples_identically_large_files(file_path1: str, file_path2: str):
+    def skip_hash_lines_and_write_temp(file_path):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w')
+        with open(file_path, 'r') as f:
+            for line in f:
+                if not line.startswith('#'):
+                    temp_file.write(line)
+        temp_file.close()
+        return temp_file.name
+
+    def count_triples(temp_file_path):
+        with open(temp_file_path, 'r') as f:
+            line_count = sum(1 for _ in f)
+        return line_count // 3
+
+    def shuffle_and_rewrite_temp(temp_file_path, indices, output_file_path):
+        with open(temp_file_path, 'r') as temp_f, open(output_file_path, 'w') as out_f:
+            triples = [next(temp_f) + next(temp_f) + next(temp_f) for _ in range(len(indices))]
+            for i in indices:
+                out_f.write(triples[i])
+
+    # Step 1: Write lines to temp files, skipping lines starting with '#'
+    temp_file_path1 = skip_hash_lines_and_write_temp(file_path1)
+    temp_file_path2 = skip_hash_lines_and_write_temp(file_path2)
+
+    # Step 2: Count triples and shuffle indices
+    num_triples = count_triples(temp_file_path1)  # Assuming both files have the same number of lines
+    indices = list(range(num_triples))
+    random.shuffle(indices)
+
+    # Step 3: Shuffle and rewrite triples using the shuffled indices
+    final_temp_path1 = tempfile.NamedTemporaryFile(delete=False).name
+    final_temp_path2 = tempfile.NamedTemporaryFile(delete=False).name
+    shuffle_and_rewrite_temp(temp_file_path1, indices, final_temp_path1)
+    shuffle_and_rewrite_temp(temp_file_path2, indices, final_temp_path2)
+
+    # Step 4: Replace original files with shuffled versions
+    os.replace(final_temp_path1, file_path1)
+    os.replace(final_temp_path2, file_path2)
+
+    # Clean up initial temp files
+    os.remove(temp_file_path1)
+    os.remove(temp_file_path2)
 
 
 @profiler
 def transform_data_to_vectors(fastq_dir: str,
-                              hic_pro_dir: str,
                               output_dir: str,
                               add_hic_output: bool,
                               train_data_percentage: float,
@@ -223,33 +299,48 @@ def transform_data_to_vectors(fastq_dir: str,
                               ) -> None:
     # read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE", "GENOMIC_DISTANCE", "VALID_PAIR", "UID"]
     read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE"]
-    for entry in os.listdir(fastq_dir):
+    dirs: list[str] = os.listdir(fastq_dir)
+    for entry in dirs:
         fastq_pair_dir_path = os.path.join(fastq_dir, entry)
+        if not common.is_directory(fastq_pair_dir_path):
+            continue
         fastq_r1_path, fastq_r2_path = common.find_r1_r2_files(fastq_pair_dir_path)
-        valid_pairs_path: str = common.find_all_valid_pairs_file(f"{hic_pro_dir}/{entry}")
 
         read_id_counter: dict[str, int] = {}
         output_r1_path: str = f"{output_dir}/{entry}/{common.add_txt_extension(fastq_r1_path)}"
         output_r2_path: str = f"{output_dir}/{entry}/{common.add_txt_extension(fastq_r2_path)}"
         transform_one_read(fastq_r1_path,
-                           valid_pairs_path,
                            output_r1_path,
                            read_vector_schema,
                            read_id_counter,
                            add_hic_output,
                            version_)
         transform_one_read(fastq_r2_path,
-                           valid_pairs_path,
                            output_r2_path,
                            read_vector_schema,
                            read_id_counter,
                            add_hic_output,
                            version_)
-        test_r1_path: str = common.insert_test_before_extension(output_r1_path)
-        test_r2_path: str = common.insert_test_before_extension(output_r2_path)
-
-
-        shuffle_data_in_file(output_r2_path, right_pair_percentage)
+        test_r1_path: str = common.insert_before_extension(output_r1_path, "_test")
+        test_r2_path: str = common.insert_before_extension(output_r2_path, "_test")
 
         split_file(output_r1_path, test_r1_path, train_data_percentage)
         split_file(output_r2_path, test_r2_path, train_data_percentage)
+
+        copy_output_r1_path: str = common.insert_before_extension(output_r1_path, "_copy")
+
+        common.copy_file_skip_hash_lines(output_r1_path, copy_output_r1_path)
+        common.append_file_to_another(output_r1_path, copy_output_r1_path)
+        common.delete_file(copy_output_r1_path)
+
+        copy_output_r2_path: str = common.insert_before_extension(output_r2_path, "_copy")
+
+        common.copy_file_skip_hash_lines(output_r2_path, copy_output_r2_path)
+        # shuffle
+        shuffle_triples_in_file(copy_output_r2_path)
+        common.append_file_to_another(output_r2_path, copy_output_r2_path)
+        common.delete_file(copy_output_r2_path)
+
+        shuffle_triples_in_file(test_r2_path)
+
+        shuffle_triples_identically_large_files(output_r1_path, output_r2_path)

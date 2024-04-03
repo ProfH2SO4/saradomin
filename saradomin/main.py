@@ -51,7 +51,7 @@ def parse_namespace(config_: ModuleType) -> st.Config:
 
 
 def run():
-    print("------ Start  -------")
+    log.info("------ Start  -------")
     config_: ModuleType = load_config()
     parsed_config: st.Config = parse_namespace(config_)
 
@@ -62,10 +62,9 @@ def run():
     log.set_up_logger(parsed_config.LOG_CONFIG)
 
     transform_data_to_vectors(parsed_config.FASTQ_DIR,
-                              parsed_config.HIC_ALL_PAIRS_DIR,
                               parsed_config.OUTPUT_DIR,
                               parsed_config.ADD_HIC_OUTPUT,
                               parsed_config.TRAIN_DATA_PERCENTAGE,
                               parsed_config.RIGHT_PAIR_PERCENTAGE,
                               __version__)
-
+    log.info("------ END  -------")
