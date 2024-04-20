@@ -51,7 +51,7 @@ def parse_namespace(config_: ModuleType) -> st.Config:
 
 
 def run():
-    log.info("------ Start  -------")
+    log.info("------ START  -------")
     config_: ModuleType = load_config()
     parsed_config: st.Config = parse_namespace(config_)
 
@@ -61,10 +61,12 @@ def run():
         create_file_if_not_exists(file_path)
     log.set_up_logger(parsed_config.LOG_CONFIG)
 
-    transform_data_to_vectors(parsed_config.FASTQ_DIR,
-                              parsed_config.OUTPUT_DIR,
-                              parsed_config.ADD_HIC_OUTPUT,
-                              parsed_config.TRAIN_DATA_PERCENTAGE,
-                              parsed_config.RIGHT_PAIR_PERCENTAGE,
-                              __version__)
+    transform_data_to_vectors(
+        parsed_config.FASTQ_DIR,
+        parsed_config.OUTPUT_DIR,
+        parsed_config.TRAIN_DATA_PERCENTAGE,
+        parsed_config.KEEP_CORRECT_TRAIN_PAIR,
+        keep_correct_test_pair=parsed_config.KEEP_CORRECT_TEST_PAIR,
+        version_=__version__,
+    )
     log.info("------ END  -------")

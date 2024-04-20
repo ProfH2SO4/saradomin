@@ -1,13 +1,19 @@
 import os
+import random
 
 from saradomin import log
+
+
+def create_dir(dir_path) -> None:
+    # Check if the directory exists, and create it if it doesn't
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
 
 
 def create_file_if_not_exists(path_to_file: str) -> None:
     # Check if the directory exists, and create it if it doesn't
     directory = os.path.dirname(path_to_file)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    create_dir(directory)
 
     # Check if the file exists, and create it if it doesn't
     if not os.path.exists(path_to_file):
@@ -21,10 +27,10 @@ def find_r1_r2_files(dir_path: str) -> tuple[str, str]:
     for file in os.listdir(dir_path):
         full_path = os.path.join(dir_path, file)
 
-        if '_R1' in file:
+        if "_R1" in file:
             r1_file = full_path
 
-        elif '_R2' in file:
+        elif "_R2" in file:
             r2_file = full_path
 
     return r1_file, r2_file
@@ -32,13 +38,13 @@ def find_r1_r2_files(dir_path: str) -> tuple[str, str]:
 
 def add_txt_extension(file_path: str) -> str:
     file_name: str = os.path.basename(file_path)
-    name_parts: list[str] = file_name.split('.', 1)
-    return name_parts[0] + '.txt'
+    name_parts: list[str] = file_name.split(".", 1)
+    return name_parts[0] + ".txt"
 
 
 def find_all_valid_pairs_file(dir_path: str) -> str:
     for file in os.listdir(dir_path):
-        if file.endswith('.allValidPairs'):
+        if file.endswith(".allValidPairs"):
             full_path = os.path.join(dir_path, file)
             return full_path
 
@@ -71,10 +77,10 @@ def copy_file_skip_hash_lines(source_path: str, destination_path: str, buffer_si
     - destination_path: Path to the destination file where the copy will be saved.
     - buffer_size: Size of the buffer to use while copying, in bytes. Default is 1MB for binary mode.
     """
-    with open(source_path, 'r') as source_file, open(destination_path, 'w') as destination_file:
+    with open(source_path, "r") as source_file, open(destination_path, "w") as destination_file:
         # Skip lines starting with '#'
         for line in source_file:
-            if not line.startswith('#'):
+            if not line.startswith("#"):
                 destination_file.write(line)
                 break
 
@@ -86,7 +92,7 @@ def copy_file_skip_hash_lines(source_path: str, destination_path: str, buffer_si
             destination_file.write(chunk)
 
 
-def append_file_to_another(source_path1: str, source_path2: str, buffer_size=1024*1024):
+def append_file_to_another(source_path1: str, source_path2: str, buffer_size=1024 * 1024):
     """
     Append the content of the second file to the end of the first file.
 
@@ -96,9 +102,9 @@ def append_file_to_another(source_path1: str, source_path2: str, buffer_size=102
     - buffer_size: Size of the buffer to use while copying, in bytes. Default is 1MB for binary mode.
     """
     # Open the first file in append mode to add content to its end
-    with open(source_path1, 'ab') as destination_file:
+    with open(source_path1, "ab") as destination_file:
         # Read and append content from the second file
-        with open(source_path2, 'rb') as source_file2:
+        with open(source_path2, "rb") as source_file2:
             while True:
                 chunk = source_file2.read(buffer_size)
                 if not chunk:
@@ -134,3 +140,109 @@ def is_directory(path: str) -> bool:
     """
     return os.path.isdir(path)
 
+
+def copy_keys_by_fraction(original_dict: dict, fraction: float) -> tuple[dict, dict]:
+    """
+    Copies a specified percentage of keys from the original dictionary to a new dictionary by reference.
+
+    :param original_dict: The dictionary from which to copy keys.
+    :param fraction: The fraction of keys to copy (between 0 and 1).
+    :return: A new dictionary containing the specified percentage of keys from the original dictionary.
+    """
+    if not (0 <= fraction <= 1):
+        raise ValueError("Percentage must be between 0 and 1")
+
+    num_keys_to_copy = int(len(original_dict) * fraction)
+    new_dict = {}
+    other_dict = {}
+    for i, (key, value) in enumerate(original_dict.items()):
+        if i < num_keys_to_copy:
+            new_dict[key] = value
+        else:
+            other_dict[key] = value
+    return new_dict, other_dict
+
+
+def get_shuffled_values_only(d, fraction_fixed):
+    """
+    Returns a list of integers from a dictionary, containing only those values that are shuffled,
+    based on the specified fraction that should remain fixed.
+
+    :param d: Dictionary of string keys and integer values.
+    :param fraction_fixed: Fraction of the values to remain in fixed positions (between 0 and 1).
+    :return: A list of integers that are shuffled, excluding the fixed fraction.
+    """
+    if not (0 <= fraction_fixed <= 1):
+        raise ValueError("Fraction must be between 0 and 1")
+
+    # Convert dictionary to a list of values
+    values = list(d.values())
+    total_values = len(values)
+    num_fixed = int(total_values * fraction_fixed)
+
+    # Indices of values that should be shuffled
+    shuffle_indices = list(range(num_fixed, total_values))
+
+    # Extract values to shuffle
+    values_to_shuffle = [values[i] for i in shuffle_indices]
+    random.shuffle(values_to_shuffle)
+
+    return values_to_shuffle
+
+
+def shuffle_selected_reads(to_shuffle: list[int], file_path: str, output_path: str) -> None:
+    """
+    Shuffles specified groups of lines (each group is three lines) in a large file based on a list of read headers.
+    It writes the shuffled result to a new file.
+
+    :param to_shuffle: List of integers representing read headers that should be shuffled.
+    :param file_path: Path to the input file containing the data.
+    :param output_path: Path to the output file where shuffled data will be written.
+    """
+    # Record positions of groups to shuffle
+    shuffle_positions = []
+    header_positions = []
+
+    # Track the current position in the file
+    current_position = 0
+
+    with open(file_path, "r") as file:
+        while True:
+            line_pos = file.tell()  # Remember the start of this line
+            line = file.readline()
+
+            if not line:
+                break  # End of file
+
+            if line.startswith("#"):
+                header_positions.append(line_pos)
+                continue
+
+            # Read the next two lines to complete the group
+            seq = file.readline()
+            score = file.readline()
+
+            read_id = int(line.split()[0])
+            if read_id in to_shuffle:
+                shuffle_positions.append(line_pos)
+
+            current_position = file.tell()
+
+    # Shuffle the positions of the groups we need to shuffle
+    random.shuffle(shuffle_positions)
+
+    # Write the result to a new file
+    with open(file_path, "r") as infile, open(output_path, "w") as outfile:
+        # Write header lines first
+        for pos in header_positions:
+            infile.seek(pos)
+            outfile.write(infile.readline())
+
+        # Read each group and write in new order
+        all_positions = header_positions + shuffle_positions
+        all_positions.sort()  # Ensure headers come first, then shuffled positions
+        for pos in all_positions:
+            infile.seek(pos)
+            outfile.write(infile.readline())  # Unique read header
+            outfile.write(infile.readline())  # Read sequence
+            outfile.write(infile.readline())  # Read score

@@ -5,8 +5,8 @@ ADD_HIC_OUTPUT = False  # Keep False
 
 
 TRAIN_DATA_PERCENTAGE = 0.9
-RIGHT_PAIR_PERCENTAGE = 0.6  # correct data percentage
-
+KEEP_CORRECT_TRAIN_PAIR = 0.5
+KEEP_CORRECT_TEST_PAIR = 0.0
 
 LOG_CONFIG = {
     "version": 1,
