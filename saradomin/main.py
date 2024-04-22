@@ -1,5 +1,8 @@
+import os
 from types import ModuleType
 from os.path import isfile
+from dataclasses import fields
+from dotenv import load_dotenv
 
 import config
 
@@ -28,12 +31,13 @@ def load_config() -> ModuleType:
     :return: configuration file
     """
     app_config: ModuleType = config
-    path: str = "/etc/saradomin/config.py"
 
-    if not isfile(path):
-        return app_config
-    if isfile(path):
-        compile_config(app_config, path)
+    load_dotenv()
+    for field_info in fields(st.Config):
+        env_value = os.getenv(field_info.name)
+        if env_value is not None:
+            field_type = type(getattr(app_config, field_info.name, field_info.default))
+            setattr(app_config, field_info.name, field_type(env_value))
     return app_config
 
 

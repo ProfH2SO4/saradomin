@@ -387,44 +387,40 @@ def transform_data_to_vectors(
     :return: None. The function writes the output directly to the specified directory.
     """
     read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE"]
-    dirs: list[str] = os.listdir(fastq_dir)
-    for entry in dirs:
-        fastq_pair_dir_path = os.path.join(fastq_dir, entry)
-        if not common.is_directory(fastq_pair_dir_path):
-            continue
-        train_dir: str = f"{output_dir}/{entry}/train"
-        test_dir: str = f"{output_dir}/{entry}/test"
-        file_r1_name: str = "READ_1.txt"
-        file_r2_name: str = "READ_2.txt"
-        common.create_dir(train_dir)
-        common.create_dir(test_dir)
-        fastq_r1_path, fastq_r2_path = common.find_r1_r2_files(fastq_pair_dir_path)
 
-        read_id_counter: dict[str, int] = {}
-        train_output_r1_path: str = f"{train_dir}/{file_r1_name}"
-        train_output_r2_path: str = f"{train_dir}/{file_r2_name}"
-        transform_one_read(fastq_r1_path, train_output_r1_path, read_vector_schema, read_id_counter, version_)
-        transform_one_read(fastq_r2_path, train_output_r2_path, read_vector_schema, read_id_counter, version_)
-        test_r1_path: str = common.insert_before_extension(f"{test_dir}/{file_r1_name}", "_test")
-        test_r2_path: str = common.insert_before_extension(f"{test_dir}/{file_r2_name}", "_test")
+    if not common.is_directory(fastq_dir):
+        return
+    train_dir: str = f"{output_dir}/train"
+    test_dir: str = f"{output_dir}/test"
+    file_r1_name: str = "READ_1.txt"
+    file_r2_name: str = "READ_2.txt"
+    common.create_dir(train_dir)
+    common.create_dir(test_dir)
+    fastq_r1_path, fastq_r2_path = common.find_r1_r2_files(fastq_dir)
 
-        training_id_counter: dict[str, int]
-        test_id_counter: dict[str, int]
-        training_id_counter, test_id_counter = common.copy_keys_by_fraction(read_id_counter, train_data_fraction)
+    read_id_counter: dict[str, int] = {}
+    train_output_r1_path: str = f"{train_dir}/{file_r1_name}"
+    train_output_r2_path: str = f"{train_dir}/{file_r2_name}"
+    transform_one_read(fastq_r1_path, train_output_r1_path, read_vector_schema, read_id_counter, version_)
+    transform_one_read(fastq_r2_path, train_output_r2_path, read_vector_schema, read_id_counter, version_)
+    test_r1_path: str = common.insert_before_extension(f"{test_dir}/{file_r1_name}", "_test")
+    test_r2_path: str = common.insert_before_extension(f"{test_dir}/{file_r2_name}", "_test")
 
-        split_file(train_output_r1_path, test_r1_path, train_data_fraction, training_id_counter)
-        split_file(train_output_r2_path, test_r2_path, train_data_fraction, training_id_counter)
+    training_id_counter: dict[str, int]
+    test_id_counter: dict[str, int]
+    training_id_counter, test_id_counter = common.copy_keys_by_fraction(read_id_counter, train_data_fraction)
 
-        train_shuffled_output_r2_path: str = common.insert_before_extension(train_output_r2_path, "_shuffled")
-        test_shuffled_output_r2_path: str = common.insert_before_extension(test_r2_path, "_shuffled")
+    split_file(train_output_r1_path, test_r1_path, train_data_fraction, training_id_counter)
+    split_file(train_output_r2_path, test_r2_path, train_data_fraction, training_id_counter)
 
-        train_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(
-            training_id_counter, keep_correct_train_pair
-        )
-        test_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(test_id_counter, keep_correct_test_pair)
+    train_shuffled_output_r2_path: str = common.insert_before_extension(train_output_r2_path, "_shuffled")
+    test_shuffled_output_r2_path: str = common.insert_before_extension(test_r2_path, "_shuffled")
 
-        common.shuffle_selected_reads(train_read_ids_to_shuffle, train_output_r2_path, train_shuffled_output_r2_path)
-        common.delete_file(train_output_r2_path)
+    train_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(training_id_counter, keep_correct_train_pair)
+    test_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(test_id_counter, keep_correct_test_pair)
 
-        common.shuffle_selected_reads(test_read_ids_to_shuffle, test_r2_path, test_shuffled_output_r2_path)
-        common.delete_file(test_r2_path)
+    common.shuffle_selected_reads(train_read_ids_to_shuffle, train_output_r2_path, train_shuffled_output_r2_path)
+    common.delete_file(train_output_r2_path)
+
+    common.shuffle_selected_reads(test_read_ids_to_shuffle, test_r2_path, test_shuffled_output_r2_path)
+    common.delete_file(test_r2_path)

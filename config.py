@@ -1,4 +1,4 @@
-FASTQ_DIR = "./test_data/fastq"
+FASTQ_DIR = "./test_data/fastq/hg19"
 OUTPUT_DIR = "./output"
 
 ADD_HIC_OUTPUT = False  # Keep False

@@ -199,50 +199,64 @@ def shuffle_selected_reads(to_shuffle: list[int], file_path: str, output_path: s
     :param file_path: Path to the input file containing the data.
     :param output_path: Path to the output file where shuffled data will be written.
     """
-    # Record positions of groups to shuffle
-    shuffle_positions = []
-    header_positions = []
+    # Position index for reads
+    read_positions = []
 
-    # Track the current position in the file
-    current_position = 0
-
+    # Read the file and index positions of reads to shuffle
     with open(file_path, "r") as file:
         while True:
-            line_pos = file.tell()  # Remember the start of this line
+            line_pos = file.tell()
             line = file.readline()
-
             if not line:
                 break  # End of file
 
-            if line.startswith("#"):
-                header_positions.append(line_pos)
-                continue
+            if line.startswith("#") or line.strip() == "":
+                continue  # Skip headers and empty lines
 
-            # Read the next two lines to complete the group
+            read_id = int(line.split()[0])
             seq = file.readline()
             score = file.readline()
 
-            read_id = int(line.split()[0])
+            # Store the position and content of each read group
             if read_id in to_shuffle:
-                shuffle_positions.append(line_pos)
+                read_positions.append((line_pos, line, seq, score))
 
-            current_position = file.tell()
+    # Shuffle the positions to reorder them
+    shuffled_positions = random.sample(read_positions, len(read_positions))
 
-    # Shuffle the positions of the groups we need to shuffle
-    random.shuffle(shuffle_positions)
+    # Now create a map from original positions to shuffled read data
+    position_map = {pos[0]: data for pos, data in zip(read_positions, shuffled_positions)}
 
-    # Write the result to a new file
+    # Write the shuffled result to a new file
     with open(file_path, "r") as infile, open(output_path, "w") as outfile:
-        # Write header lines first
-        for pos in header_positions:
-            infile.seek(pos)
-            outfile.write(infile.readline())
+        infile.seek(0)
+        current_pos = infile.tell()
+        line = infile.readline()
 
-        # Read each group and write in new order
-        all_positions = header_positions + shuffle_positions
-        all_positions.sort()  # Ensure headers come first, then shuffled positions
-        for pos in all_positions:
-            infile.seek(pos)
-            outfile.write(infile.readline())  # Unique read header
-            outfile.write(infile.readline())  # Read sequence
-            outfile.write(infile.readline())  # Read score
+        while line:
+            if line.startswith("#"):
+                # Write headers and other metadata directly
+                outfile.write(line)
+                current_pos = infile.tell()
+                line = infile.readline()
+                continue
+
+            if current_pos in position_map:
+                # Write the shuffled data
+                data = position_map[current_pos]
+                outfile.write(data[1])  # Read ID line
+                outfile.write(data[2])  # Sequence line
+                outfile.write(data[3])  # Score line
+                # Skip the next two lines in the input file since they're already written
+                infile.readline()
+                infile.readline()
+            else:
+                # Write lines that are not part of any group directly
+                outfile.write(line)
+                line = infile.readline()
+                outfile.write(line)
+                line = infile.readline()
+                outfile.write(line)
+
+            current_pos = infile.tell()
+            line = infile.readline()
