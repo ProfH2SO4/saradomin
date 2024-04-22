@@ -1,7 +1,7 @@
 # Found Problems:
 
-when file size is higher than RAM. problem in function `shuffle_data_in_file`
-may be try shuffle at the beginning? Order of the pairs important?
+when file size is higher than RAM.
+may be try shuffle at the beginning?
 
 
 

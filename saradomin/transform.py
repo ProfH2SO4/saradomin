@@ -22,7 +22,7 @@ def create_file_header(
         f"#DATE={datetime.utcnow().isoformat()}\n"
         f"#pre_processing_version={version}\n"
         f"#mapping: {mapping}\n"
-        f"#schema=1.row UID\t2. row {read_vector_schema[0]}\t3. row {read_vector_schema[1]} \n"
+        f"#schema=1.row UID\t2.row {read_vector_schema[0]}\t3.row {read_vector_schema[1]} \n"
         "####END####\n"
     )
     with open(path_to_file, "w") as f:
@@ -386,7 +386,7 @@ def transform_data_to_vectors(
     :param version_: A list of integers specifying the version of the processing algorithm or tools used.
     :return: None. The function writes the output directly to the specified directory.
     """
-    read_vector_schema: list = ["NUCLEOTIDE", "PHRED_SCORE"]
+    read_vector_schema: list = ["NUCLEOTIDE", "SCORE"]
 
     if not common.is_directory(fastq_dir):
         return
