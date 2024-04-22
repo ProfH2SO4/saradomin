@@ -26,8 +26,8 @@ def compile_config(app_config: ModuleType, path: str):
 
 def load_config() -> ModuleType:
     """
-    Load local config.py.
-    If exists config.py in /etc/saradomin/ then overrides parameters in local config.py.
+    Load config variables
+    Overrides .env params override config
     :return: configuration file
     """
     app_config: ModuleType = config

@@ -60,8 +60,8 @@ You can use snippet of HiC data in `test_data` or download whole [HiC dataset](h
 
 Tailor Saradomin to your project needs by adjusting its configuration:
 
-1. **Custom Configuration parameters File:**
-   Pass environment variable. E.g Create `.env` file. (Parameters in .env overrides `config.py`)
+1. **Custom Configuration:**
+   Pass environment variable. E.g Create `.env` file. (Variables in .env overrides `config.py`)
 
 2. **Local Configuration:**
    For quick adjustments, modify the `config.py` file in the root directory. This approach is recommended for temporary changes or small-scale projects.
