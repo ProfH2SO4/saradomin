@@ -21,8 +21,8 @@ def create_file_header(
         "#HEADER#\n"
         f"#DATE={datetime.utcnow().isoformat()}\n"
         f"#pre_processing_version={version}\n"
-        f"#{mapping}\n"
-        f"#row_schema={read_vector_schema}\tUID\n"
+        f"#mapping: {mapping}\n"
+        f"#schema=1.row UID\t2. row {read_vector_schema[0]}\t3. row {read_vector_schema[1]} \n"
         "####END####\n"
     )
     with open(path_to_file, "w") as f:
