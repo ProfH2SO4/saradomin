@@ -1,7 +1,17 @@
 import os
 import random
+import shutil
 
 from saradomin import log
+
+
+def delete_directory_if_exists(dir_path):
+    if os.path.exists(dir_path):
+        try:
+            shutil.rmtree(dir_path)
+            log.debug(f"Directory '{dir_path}' deleted successfully.")
+        except OSError as e:
+            log.warning(f"Error: {dir_path} : {e.strerror}")
 
 
 def create_dir(dir_path) -> None:

@@ -4,7 +4,7 @@ import random
 import tempfile
 from datetime import datetime
 
-from . import common
+from . import common, validator
 from .profiler import profiler
 from . import log
 
@@ -133,31 +133,14 @@ def split_file(
     :return: None, create new testing file
     """
     log.debug(f"splitting {original_file}, train_data_percentage {train_data_percentage}")
-    header_lines: list[str] = []
-
-    # Read the original file to extract header lines and determine the split index
-    with open(original_file, "r") as file:
-        for line in file:
-            if line.startswith("####END####"):
-                header_lines.append(line)
-                break
-            header_lines.append(line)
 
     # Use a temporary file to store the first part
     temp_file = original_file + ".tmp"
 
     # Process the original file line by line, preserving headers in both files
     with open(original_file, "r") as file, open(temp_file, "w") as temp, open(new_file, "w") as new_f:
-        # Write header lines to both files
-        for header in header_lines:
-            temp.write(header)
-            new_f.write(header)
-
-        # Skip header lines already read
-        _ = [next(file) for _ in range(len(header_lines))]
-
         # Split the remaining lines between the original (temp) and new file
-        it = iter(enumerate(file, start=len(header_lines)))
+        it = iter(enumerate(file, start=0))
         for i, line in it:
             if int(line.strip()) in training_id_counter.values():
                 # Write the current and the next two lines to temp
@@ -241,7 +224,7 @@ def transform_one_read(
     :return: None. The function writes the processed read directly to the output file path specified.
     """
     common.create_file_if_not_exists(output_file_path)
-    create_file_header(output_file_path, read_vector_schema, version)
+    # create_file_header(output_file_path, read_vector_schema, version)
     save_fastq(fastq_read_path, output_file_path, read_id_counter)
 
 
@@ -392,6 +375,9 @@ def transform_data_to_vectors(
         return
     train_dir: str = f"{output_dir}/train"
     test_dir: str = f"{output_dir}/test"
+    common.delete_directory_if_exists(train_dir)
+    common.delete_directory_if_exists(test_dir)
+    # existing dirs were deleted
     file_r1_name: str = "READ_1.txt"
     file_r2_name: str = "READ_2.txt"
     common.create_dir(train_dir)
@@ -403,6 +389,7 @@ def transform_data_to_vectors(
     train_output_r2_path: str = f"{train_dir}/{file_r2_name}"
     transform_one_read(fastq_r1_path, train_output_r1_path, read_vector_schema, read_id_counter, version_)
     transform_one_read(fastq_r2_path, train_output_r2_path, read_vector_schema, read_id_counter, version_)
+    # all files are encoded
     test_r1_path: str = common.insert_before_extension(f"{test_dir}/{file_r1_name}", "_test")
     test_r2_path: str = common.insert_before_extension(f"{test_dir}/{file_r2_name}", "_test")
 
@@ -424,3 +411,9 @@ def transform_data_to_vectors(
 
     common.shuffle_selected_reads(test_read_ids_to_shuffle, test_r2_path, test_shuffled_output_r2_path)
     common.delete_file(test_r2_path)
+
+    # file must have same size
+    if not validator.check_file_sizes_equal(train_output_r1_path, train_shuffled_output_r2_path):
+        log.error("Train files do not have same size")
+    if not validator.check_file_sizes_equal(test_r1_path, test_shuffled_output_r2_path):
+        log.error("Test files do not have same size")
