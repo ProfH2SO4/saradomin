@@ -1,12 +1,13 @@
-FASTQ_DIR = "./test_data/fastq/hg19"
+FASTQ_READ_1 = "./test_data/fastq/hg19/HIC_HEAD_R1.fastq"
+FASTQ_READ_2 = "./test_data/fastq/hg19/HIC_HEAD_R2.fastq"
 OUTPUT_DIR = "./output"
 
-ADD_HIC_OUTPUT = False  # Keep False
-
+KMER = 3
 
 TRAIN_DATA_PERCENTAGE = 0.9
-KEEP_CORRECT_TRAIN_PAIR = 0.5
-KEEP_CORRECT_TEST_PAIR = 0.0
+NEGATIVE_TRAIN_SAMPLES = 0.5
+NEGATIVE_TEST_SAMPLES = 0.5
+
 
 LOG_CONFIG = {
     "version": 1,

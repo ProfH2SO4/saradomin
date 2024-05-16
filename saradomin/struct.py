@@ -3,12 +3,13 @@ from dataclasses import dataclass, fields
 
 @dataclass(slots=True)
 class Config:
-    FASTQ_DIR: str
+    FASTQ_READ_1: str
+    FASTQ_READ_2: str
     OUTPUT_DIR: str
-    ADD_HIC_OUTPUT: bool
+    KMER: int
     TRAIN_DATA_PERCENTAGE: int
-    KEEP_CORRECT_TRAIN_PAIR: float  # decimal
-    KEEP_CORRECT_TEST_PAIR: float
+    NEGATIVE_TRAIN_SAMPLES: float
+    NEGATIVE_TEST_SAMPLES: float
     LOG_CONFIG: dict
 
     def __init__(self, **kwargs):

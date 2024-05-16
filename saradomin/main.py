@@ -66,11 +66,13 @@ def run():
     log.set_up_logger(parsed_config.LOG_CONFIG)
 
     transform_data_to_vectors(
-        parsed_config.FASTQ_DIR,
+        parsed_config.FASTQ_READ_1,
+        parsed_config.FASTQ_READ_2,
         parsed_config.OUTPUT_DIR,
+        parsed_config.KMER,
         parsed_config.TRAIN_DATA_PERCENTAGE,
-        parsed_config.KEEP_CORRECT_TRAIN_PAIR,
-        keep_correct_test_pair=parsed_config.KEEP_CORRECT_TEST_PAIR,
+        parsed_config.NEGATIVE_TRAIN_SAMPLES,
+        negative_test_samples=parsed_config.NEGATIVE_TEST_SAMPLES,
         version_=__version__,
     )
     log.info("------ END  -------")

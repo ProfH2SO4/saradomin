@@ -138,19 +138,6 @@ def delete_file(file_path: str) -> None:
         log.debug(f"The file '{file_path}' does not exist.")
 
 
-def is_directory(path: str) -> bool:
-    """
-    Check if the given path is a directory.
-
-    Parameters:
-    - path: The path to check.
-
-    Returns:
-    - True if the path is a directory, False otherwise.
-    """
-    return os.path.isdir(path)
-
-
 def copy_keys_by_fraction(original_dict: dict, fraction: float) -> tuple[dict, dict]:
     """
     Copies a specified percentage of keys from the original dictionary to a new dictionary by reference.
@@ -200,73 +187,31 @@ def get_shuffled_values_only(d, fraction_fixed):
     return values_to_shuffle
 
 
-def shuffle_selected_reads(to_shuffle: list[int], file_path: str, output_path: str) -> None:
-    """
-    Shuffles specified groups of lines (each group is three lines) in a large file based on a list of read headers.
-    It writes the shuffled result to a new file.
-
-    :param to_shuffle: List of integers representing read headers that should be shuffled.
-    :param file_path: Path to the input file containing the data.
-    :param output_path: Path to the output file where shuffled data will be written.
-    """
-    # Position index for reads
-    read_positions = []
-
-    # Read the file and index positions of reads to shuffle
+def create_negative_samples(file_path: str, fraction_of_negative_samples) -> None:
     with open(file_path, "r") as file:
-        while True:
-            line_pos = file.tell()
-            line = file.readline()
-            if not line:
-                break  # End of file
+        lines = file.readlines()
 
-            if line.startswith("#") or line.strip() == "":
-                continue  # Skip headers and empty lines
+    header = lines[0]  # Save the header
+    data = lines[1:]  # All data excluding the header
 
-            read_id = int(line.split()[0])
-            seq = file.readline()
-            score = file.readline()
+    num_negative_samples = int(len(data) * fraction_of_negative_samples)
+    negative_samples = []
 
-            # Store the position and content of each read group
-            if read_id in to_shuffle:
-                read_positions.append((line_pos, line, seq, score))
+    for _ in range(num_negative_samples):
+        # Randomly pick a line to copy the first part
+        first_part = random.choice(data).split("[SEP]")[0].strip()
+        # Randomly pick a different line to copy the second part
+        second_part = random.choice(data).split("[SEP]")[1].strip()
+        second_part = second_part[:-1] + "0"
+        # Construct a new negative sample line
+        negative_samples.append(f"{first_part} [SEP] {second_part}\n")
 
-    # Shuffle the positions to reorder them
-    shuffled_positions = random.sample(read_positions, len(read_positions))
+    # Insert negative samples randomly into the data
+    for sample in negative_samples:
+        insert_index = random.randint(1, len(data))  # Choose a random position to insert
+        data.insert(insert_index, sample)
 
-    # Now create a map from original positions to shuffled read data
-    position_map = {pos[0]: data for pos, data in zip(read_positions, shuffled_positions)}
-
-    # Write the shuffled result to a new file
-    with open(file_path, "r") as infile, open(output_path, "w") as outfile:
-        infile.seek(0)
-        current_pos = infile.tell()
-        line = infile.readline()
-
-        while line:
-            if line.startswith("#"):
-                # Write headers and other metadata directly
-                outfile.write(line)
-                current_pos = infile.tell()
-                line = infile.readline()
-                continue
-
-            if current_pos in position_map:
-                # Write the shuffled data
-                data = position_map[current_pos]
-                outfile.write(data[1])  # Read ID line
-                outfile.write(data[2])  # Sequence line
-                outfile.write(data[3])  # Score line
-                # Skip the next two lines in the input file since they're already written
-                infile.readline()
-                infile.readline()
-            else:
-                # Write lines that are not part of any group directly
-                outfile.write(line)
-                line = infile.readline()
-                outfile.write(line)
-                line = infile.readline()
-                outfile.write(line)
-
-            current_pos = infile.tell()
-            line = infile.readline()
+    # Write the modified data back to the file
+    with open(file_path, "w") as file:
+        file.write(header)  # Write the header back first
+        file.writelines(data)  # Then write the data including new negative samples

@@ -43,90 +43,85 @@ def convert_ascii_score_to_int(quality_string: str) -> list[int]:
     return score
 
 
+def divide_seq_to_kmer(seq: str, pad: str, kmer: int) -> str:
+    # Initialize the result list
+    result = []
+
+    # Process the sequence in chunks of size `kmer`
+    for i in range(0, len(seq), kmer):
+        chunk = seq[i : i + kmer]
+
+        # Check if the last chunk needs padding
+        if len(chunk) < kmer:
+            chunk += pad * (kmer - len(chunk))  # Pad the chunk to ensure it is of length `kmer`
+
+        # Append the chunk to the result list
+        result.append(chunk)
+
+    # Join all chunks with space and return
+    return " ".join(result)
+
+
+def create_line(seq_1: str, sep: str, seq_2: str, pad: str, kmer: int) -> str:
+    seq_1_kmer = divide_seq_to_kmer(seq_1, pad, kmer)
+    seq_2_kmer = divide_seq_to_kmer(seq_2, pad, kmer)
+    return f"{seq_1_kmer} {sep} {seq_2_kmer}\t1\n"
+
+
+def get_first_file_seq(file_1_gen, file_2_gen):
+    seq1: str = ""
+    seq2: str = ""
+
+    next(file_1_gen)
+    seq1 = next(file_1_gen).strip()
+    next(file_2_gen)
+    seq2 = next(file_2_gen).strip()
+    return seq1, seq2
+
+
+def grouper(iterable, n):
+    """Collect data into fixed-length chunks or blocks"""
+    args = [iter(iterable)] * n
+    return zip(*args)
+
+
 @profiler
-def save_fastq(fastq_read_path: str, output_file_path: str, read_id_counter: dict[str, int]) -> None:
+def save_fastq(read_1_p: str, read_2_p: str, output_file_path: str, kmer: int) -> int:
     """
     Saves a modified FASTQ read to a specified output file.
     The saved values looks like this:
-    0
-    [4, 0, 1 ,3]
-    [35, 60, 60]
+    AAA TTT SEP AAA TTT 1
     :param fastq_read_path: Path to the input FASTQ file from which reads are processed.
     :param output_file_path: Path to the output file where processed reads are to be saved.
     :param read_id_counter: A dictionary mapping read identifiers to their new occurrence count after processing.
     :return: None. Outputs are written directly to the specified file.
     """
-    uid_counter: int = 0
-    with open(fastq_read_path, "r") as fastq_file, open(output_file_path, "a") as output_file:
-        for line in fastq_file:
-            if line.startswith("@"):
-                read_id = line.split()[0][1:]  # Remove the '@' character
-                sequence_line = next(fastq_file).strip()  # Nucleotide sequence
-                next(fastq_file)  # Skip the '+' line
-                quality_line = next(fastq_file).strip()  # PHRED quality scores
+    sep: str = "[SEP]"
+    pad: str = "X"
+    number_of_reads: int = 0
+    header: str = "sequence\tlabel\n"
+    with open(read_1_p, "r") as r1_file, open(read_2_p, "r") as r2_file, open(output_file_path, "a") as output_file:
+        output_file.write(header)
+        # Use zip to iterate over both files simultaneously
+        for r1_lines, r2_lines in zip(grouper(r1_file, 4), grouper(r2_file, 4)):
+            if not r1_lines or not r2_lines:
+                # If either file ends, stop processing
+                break
+            # Extract sequence lines
+            r1_seq = r1_lines[1].strip()
+            r2_seq = r2_lines[1].strip()
 
-                if read_id not in read_id_counter:
-                    read_id_counter[read_id] = uid_counter
-                    uid_counter += 1
-                # encode the entire sequence
-                encoded_sequence = encode_sequence(sequence_line)
-                score: list[int] = convert_ascii_score_to_int(quality_line)
-
-                output_file.write(f"{read_id_counter[read_id]}\n")
-                output_file.write(f"{str(encoded_sequence)}\n")
-                output_file.write(f"{str(score)}\n")
-
-
-def insert_valid_pair(line_vector: list, valid_pair_pos: int, genomic_distance_pos: int, genomic_distance: int) -> None:
-    line_vector[valid_pair_pos] = 1
-    line_vector[genomic_distance_pos] = genomic_distance
-
-
-def insert_all_valid_pairs(
-    hic_pro_valid_pairs_path: str, output_file_path: str, read_vector_schema: str, read_id_counter: dict[str, int]
-) -> None:  # TODO Profile this function is slow
-    valid_pairs_dict: dict[str, dict] = {}
-    with open(hic_pro_valid_pairs_path, "r") as valid_pairs_file:
-        for line in valid_pairs_file:
-            columns = line.strip().split("\t")
-
-            read_id: str = columns[0]
-            genomic_distance = columns[-5]  # Fifth element from the end
-            valid_pairs_dict[read_id] = {"genomic_distance": genomic_distance}
-
-    uid_index_from_end: int = common.get_position_feature(read_vector_schema, "UID")
-    genomic_distance_index_from_end: int = common.get_position_feature(read_vector_schema, "GENOMIC_DISTANCE")
-    valid_pair_index_from_end: int = common.get_position_feature(read_vector_schema, "VALID_PAIR")
-    temp_file_path: str = output_file_path + ".tmp"
-    with open(output_file_path, "r") as o_file, open(temp_file_path, "w") as temp_file:
-        for line in o_file:
-            if line.startswith("#"):
-                temp_file.write(line)
-                continue
-            line_list = ast.literal_eval(line)
-            uid: int = int(line_list[len(line_list) - 1 - uid_index_from_end])
-
-            uid_str: str = common.get_key_from_value(read_id_counter, uid)
-            if uid_str in valid_pairs_dict:
-                insert_valid_pair(
-                    line_list,
-                    (len(line_list) - 1) - valid_pair_index_from_end,
-                    (len(line_list) - 1) - genomic_distance_index_from_end,
-                    valid_pairs_dict[uid_str]["genomic_distance"],
-                )
-            temp_file.write(str(line_list) + "\n")
-
-    os.replace(temp_file_path, output_file_path)
+            # Process the sequence lines
+            line = create_line(r1_seq, sep, r2_seq, pad=pad, kmer=kmer)
+            output_file.write(line)
+            number_of_reads += 1
+    return number_of_reads
 
 
 @profiler
-def split_file(
-    original_file: str, new_file: str, train_data_percentage: float, training_id_counter: [str, int]
-) -> None:
+def split_file(original_file: str, new_file: str, train_data_percentage: float, number_of_reads: int) -> None:
     """
     Split file into training and testing data. The data are split based on  number of reads.
-    In this case One read takes a 3 lines in file 1. read_id, 2. Sequence 3. score.
-    The file is split as following: ((sum(lines) - header lines) // 3) * train_data_percentage == number_of_reads * train_data_percentage + len(header_lines)
     :param original_file:
     :param new_file: (testing file)
     :param train_data_percentage:
@@ -136,24 +131,15 @@ def split_file(
 
     # Use a temporary file to store the first part
     temp_file = original_file + ".tmp"
-
+    num_train_reads = int(train_data_percentage * number_of_reads)
     # Process the original file line by line, preserving headers in both files
-    with open(original_file, "r") as file, open(temp_file, "w") as temp, open(new_file, "w") as new_f:
-        # Split the remaining lines between the original (temp) and new file
-        it = iter(enumerate(file, start=0))
-        for i, line in it:
-            if int(line.strip()) in training_id_counter.values():
-                # Write the current and the next two lines to temp
-                temp.write(line)
-                temp.write(next(it)[1])  # Write next line
-                temp.write(next(it)[1])  # Write the line after next
+    with open(original_file, "r") as file, open(temp_file, "w") as temp_f, open(new_file, "w") as new_f:
+        for i, line in enumerate(file):
+            if i < num_train_reads:
+                temp_f.write(line)  # Write to temporary file (training data)
             else:
-                new_f.write(line)
-                new_f.write(next(it)[1])  # Write next line
-                new_f.write(next(it)[1])  # Write the line after next
-
-    # Replace the original file with the temporary file containing the first part
-    shutil.move(temp_file, original_file)
+                new_f.write(line)  # Write to new file (testing data)
+    os.rename(temp_file, original_file)
 
 
 @profiler
@@ -204,13 +190,13 @@ def shuffle_data_in_file(file_path: str, right_pair_percentage: float):
     os.remove(index_file)  # Clean up the index file
 
 
-def transform_one_read(
-    fastq_read_path: str,
+def transform_to_nn(
+    read_1_p: str,
+    read_2_p: str,
     output_file_path: str,
-    read_vector_schema: list[str],
-    read_id_counter: dict[str, int],
+    kmer: int,
     version: list[int],
-) -> None:
+) -> int:
     """
     Processes a single FASTQ read, transforming it according to a specified schema, and writes the output to a file.
     It updates the read_id_counter dictionary to keep track of read identifiers.
@@ -224,8 +210,7 @@ def transform_one_read(
     :return: None. The function writes the processed read directly to the output file path specified.
     """
     common.create_file_if_not_exists(output_file_path)
-    # create_file_header(output_file_path, read_vector_schema, version)
-    save_fastq(fastq_read_path, output_file_path, read_id_counter)
+    return save_fastq(read_1_p, read_2_p, output_file_path, kmer)
 
 
 def shuffle_triples_in_file(file_path: str):
@@ -349,11 +334,13 @@ def shuffle_triples_preserve_headers(file_path1: str, file_path2: str):
 
 @profiler
 def transform_data_to_vectors(
-    fastq_dir: str,
+    fastq_read_1: str,
+    fastq_read_2: str,
     output_dir: str,
+    kmer: int,
     train_data_fraction: float,
-    keep_correct_train_pair: float,  # CORRECT_TRAIN_PAIR_PERCENTAGE
-    keep_correct_test_pair: float,
+    negative_train_samples: float,  # CORRECT_TRAIN_PAIR_PERCENTAGE
+    negative_test_samples: float,
     version_: list[int],
 ) -> None:
     """
@@ -364,56 +351,33 @@ def transform_data_to_vectors(
     :param fastq_dir: Path to the directory containing the FASTQ files.
     :param output_dir: Directory where the transformed vector output will be stored.
     :param train_data_fraction: Percentage of the total data to be used as training data.
-    :param keep_correct_train_pair: Percentage of correct pairs to keep in the training dataset.
-    :param keep_correct_test_pair: Percentage of correct pairs to keep in the testing dataset.
+    :param negative_test_samples: Percentage of correct pairs to keep in the training dataset.
+    :param negative_train_samples: Percentage of correct pairs to keep in the testing dataset.
     :param version_: A list of integers specifying the version of the processing algorithm or tools used.
     :return: None. The function writes the output directly to the specified directory.
     """
-    read_vector_schema: list = ["NUCLEOTIDE", "SCORE"]
-
-    if not common.is_directory(fastq_dir):
+    random.seed(5)
+    if not validator.check_if_file_exists(fastq_read_1):
+        log.info(f"Missing r1: {fastq_read_1}")
+        return
+    if not validator.check_if_file_exists(fastq_read_2):
+        log.info(f"Missing r2: {fastq_read_2}")
         return
     train_dir: str = f"{output_dir}/train"
     test_dir: str = f"{output_dir}/test"
     common.delete_directory_if_exists(train_dir)
     common.delete_directory_if_exists(test_dir)
     # existing dirs were deleted
-    file_r1_name: str = "READ_1.txt"
-    file_r2_name: str = "READ_2.txt"
+    file_r1_name: str = "train.tsv"
     common.create_dir(train_dir)
     common.create_dir(test_dir)
-    fastq_r1_path, fastq_r2_path = common.find_r1_r2_files(fastq_dir)
 
-    read_id_counter: dict[str, int] = {}
-    train_output_r1_path: str = f"{train_dir}/{file_r1_name}"
-    train_output_r2_path: str = f"{train_dir}/{file_r2_name}"
-    transform_one_read(fastq_r1_path, train_output_r1_path, read_vector_schema, read_id_counter, version_)
-    transform_one_read(fastq_r2_path, train_output_r2_path, read_vector_schema, read_id_counter, version_)
-    # all files are encoded
-    test_r1_path: str = common.insert_before_extension(f"{test_dir}/{file_r1_name}", "_test")
-    test_r2_path: str = common.insert_before_extension(f"{test_dir}/{file_r2_name}", "_test")
+    train_file_path: str = f"{train_dir}/{file_r1_name}"
+    number_of_reads: int = transform_to_nn(fastq_read_1, fastq_read_2, train_file_path, kmer, version_)
 
-    training_id_counter: dict[str, int]
-    test_id_counter: dict[str, int]
-    training_id_counter, test_id_counter = common.copy_keys_by_fraction(read_id_counter, train_data_fraction)
+    test_path: str = f"{test_dir}/test.tsv"
 
-    split_file(train_output_r1_path, test_r1_path, train_data_fraction, training_id_counter)
-    split_file(train_output_r2_path, test_r2_path, train_data_fraction, training_id_counter)
+    split_file(train_file_path, test_path, train_data_fraction, number_of_reads)
 
-    train_shuffled_output_r2_path: str = common.insert_before_extension(train_output_r2_path, "_shuffled")
-    test_shuffled_output_r2_path: str = common.insert_before_extension(test_r2_path, "_shuffled")
-
-    train_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(training_id_counter, keep_correct_train_pair)
-    test_read_ids_to_shuffle: list[int] = common.get_shuffled_values_only(test_id_counter, keep_correct_test_pair)
-
-    common.shuffle_selected_reads(train_read_ids_to_shuffle, train_output_r2_path, train_shuffled_output_r2_path)
-    common.delete_file(train_output_r2_path)
-
-    common.shuffle_selected_reads(test_read_ids_to_shuffle, test_r2_path, test_shuffled_output_r2_path)
-    common.delete_file(test_r2_path)
-
-    # file must have same size
-    if not validator.check_file_sizes_equal(train_output_r1_path, train_shuffled_output_r2_path):
-        log.error("Train files do not have same size")
-    if not validator.check_file_sizes_equal(test_r1_path, test_shuffled_output_r2_path):
-        log.error("Test files do not have same size")
+    common.create_negative_samples(train_file_path, negative_train_samples)
+    common.create_negative_samples(test_path, negative_test_samples)
