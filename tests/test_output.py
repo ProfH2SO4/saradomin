@@ -4,162 +4,204 @@ import os
 from . import common
 
 
-def test_output_factory(input_dir_path: str, output_dir_path: str):
+def is_valid_sequence(seq):
+    """Checks if the sequence contains only valid nucleotide characters."""
+    return all(c in "ACGTNX" for c in seq)
+
+
+def test_output_factory(
+    r1_path: str,
+    r2_path: str,
+    output_dir_path: str,
+    kmer: int,
+    train_data_fraction: float,
+    negative_train_samples: float,
+    negative_test_samples: float,
+):
     def _init(self, methodName="runTest"):
-        TestOutputFiles.__init__(self, methodName, input_dir_path, output_dir_path)
+        TestOutputFiles.__init__(
+            self,
+            methodName,
+            r1_path,
+            r2_path,
+            output_dir_path,
+            kmer,
+            train_data_fraction,
+            negative_train_samples,
+            negative_test_samples,
+        )
 
     return type(f"TestModelData", (TestOutputFiles,), {"__init__": _init})
 
 
-class TestOutputFiles(unittest.TestCase):
-    def __init__(self, methodName: str, input_dir_path: str, output_dir_path: str):
+class TestOutputFiles(unittest.TestCase):  # TODO needs refactor
+    def __init__(
+        self,
+        methodName: str,
+        r1_path: str,
+        r2_path: str,
+        output_dir_path: str,
+        kmer: int,
+        train_data_fraction: float,
+        negative_train_samples: float,
+        negative_test_samples: float,
+    ):
         super(TestOutputFiles, self).__init__(methodName)
-        self.input_dir_path = input_dir_path
+        self.r1_path = r1_path
+        self.r2_path = r2_path
         self.output_dir_path = output_dir_path
-        self.sub_dirs = ["train", "test"]
+        self.kmer = kmer
+        self.train_data_fraction = train_data_fraction
+        self.negative_train_samples = negative_train_samples
+        self.negative_test_samples = negative_test_samples
+        self.output_train_file = common.get_first_file_path(f"{output_dir_path}/train")
+        self.output_test_file = common.get_first_file_path(f"{output_dir_path}/test")
+        self.read_separator = "[SEP]"
 
-    def test_output_structure(self):
-        """In each directory must be 2 directories with name train and test. In each of them must be 2 files."""
-        # Directories to check within the output directory
+    def test_if_all_reads_in_output(self):
+        input_sequence_r1 = common.read_input_file(self.r1_path)
+        input_sequence_r2 = common.read_input_file(self.r2_path)
 
-        for sub_dir in self.sub_dirs:
-            # Build the path to the subdirectory
-            dir_path = os.path.join(self.output_dir_path, sub_dir)
+        # load only lines ending with 1
+        train_correct_pairs = 0
+        test_correct_pairs = 0
+        with open(self.output_train_file, "r") as f1:
+            next(f1)  # header
+            for line in f1:
+                stripped_line = line.strip()
+                if int(stripped_line[-1]) == 1:
+                    train_correct_pairs += 1
+        with open(self.output_test_file, "r") as f2:
+            next(f2)  # header
+            for line in f2:
+                stripped_line = line.strip()
+                if int(stripped_line[-1]) == 1:
+                    test_correct_pairs += 1
+        # + 1 cuz header
+        self.assertEqual(
+            len(input_sequence_r1),
+            train_correct_pairs + test_correct_pairs + 1,
+            msg=f"train_correct_pairs {train_correct_pairs} test_correct_pairs {test_correct_pairs}",
+        )
 
-            # Check if the subdirectory exists
-            self.assertTrue(os.path.exists(dir_path), f"{sub_dir} directory does not exist at {dir_path}")
-            self.assertTrue(os.path.isdir(dir_path), f"{sub_dir} is not a directory")
+    def test_train_structure(self):
+        input_sequence_r1 = common.read_input_file(self.r1_path)
+        input_sequence_r2 = common.read_input_file(self.r2_path)
 
-            # List files in the subdirectory
-            files = os.listdir(dir_path)
+        # load only lines ending with 1
+        r1_outputs: list[str] = []
+        r2_outputs: list[str] = []
+        with open(self.output_train_file, "r") as f1:
+            next(f1)  # header
+            for line in f1:
+                stripped_line = line.strip()
+                if int(stripped_line[-1]) == 1:
+                    r1_output, r2_output = common.process_line(self.read_separator, stripped_line)
+                    r1_outputs.append(r1_output)
+                    r2_outputs.append(r2_output)
+        used_indices_r1 = set()  # Set to track used indices from input_sequence_r1
+        used_indices_r2 = set()
+        for output_pos in range(len(r1_outputs)):
+            found = False  # Flag to check if i_r1 is found at the beginning of any string in r1_outputs
+            for pos_r1 in range(len(input_sequence_r1)):
+                # Check if i_r1 is at the beginning, only appears once at the start, and has not been used yet
+                if r1_outputs[output_pos].startswith(input_sequence_r1[pos_r1]) and pos_r1 not in used_indices_r1:
+                    if r2_outputs[output_pos].startswith(input_sequence_r2[pos_r1]) and pos_r1 not in used_indices_r2:
+                        used_indices_r1.add(pos_r1)  # Mark this pos_r1 as used
+                        used_indices_r2.add(pos_r1)
+                        break
+        self.assertEqual(used_indices_r1, used_indices_r2)
 
-            # Check if there are exactly 2 files in the directory
-            self.assertEqual(
-                len(files), 2, f"There should be exactly 2 files in the {sub_dir} directory, but found {len(files)}"
-            )
+    def test_train_row_structure(self):
+        with open(self.output_train_file, "r") as f1:
+            next(f1)  # Skip the header
+            for line_number, line in enumerate(f1, start=2):  # Start counting from line 2
+                parts = line.strip().split()
 
-    def test_right_transformed_train(self):
-        """In train directories read Trios(uid, seq, score) must be correctly transformed"""
-        input_entries = os.listdir(self.input_dir_path)
-        input_files = [
-            os.path.join(self.input_dir_path, entry)
-            for entry in input_entries
-            if os.path.isfile(os.path.join(self.input_dir_path, entry))
-        ]
+                # Assert that the separator is present
+                self.assertIn(
+                    self.read_separator, parts, f"Separator '{self.read_separator}' not found in line {line_number}"
+                )
 
-        read_1_input = input_files.pop(0) if "_R1" in input_files[0] else input_files[1]
-        read_2_input = input_files[0]
+                # Find the index of the separator and assert structure
+                sep_index = parts.index(self.read_separator)
+                self.assertNotEqual(sep_index, 0, f"Separator is the first element in line {line_number}")
+                self.assertNotEqual(
+                    sep_index, len(parts) - 1, f"Separator is the last element before the integer in line {line_number}"
+                )
 
-        train_dir = f"{self.output_dir_path}/train"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        read_1_output = file_paths[0]
-        read_2_output = file_paths[1]
+                # Check sequences before the separator
+                self.assertTrue(
+                    all(is_valid_sequence(seq) for seq in parts[:sep_index]),
+                    f"Invalid nucleotide sequence before separator in line {line_number}",
+                )
 
-        # 1. read
-        file_input = common.read_input_file(read_1_input)
-        file_output = common.read_output_file(read_1_output)
+                # Check sequences after the separator and before the last element
+                self.assertTrue(
+                    all(is_valid_sequence(seq) for seq in parts[sep_index + 1 : -1]),
+                    f"Invalid nucleotide sequence after separator in line {line_number}",
+                )
 
-        for key in file_output.keys():
-            self.assertEqual(file_input[key][0], file_output[key][0], msg=f"Seq in read {key} are not equal")
-            self.assertEqual(file_input[key][1], file_output[key][1], msg=f"Score in read {key} are not equal")
+                # Assert the last element is an integer
+                self.assertTrue(parts[-1].isdigit(), f"Last element in line {line_number} is not an integer")
 
-        # 2. read
-        file_input = common.read_input_file(read_2_input)
-        file_output = common.read_output_file(read_2_output)
-        for key in file_output.keys():
-            self.assertEqual(file_input[key][0], file_output[key][0], msg=f"Seq in read {key} are not equal")
-            self.assertEqual(file_input[key][1], file_output[key][1], msg=f"Score in read {key} are not equal")
+    def test_output_reads_test(self):
+        input_sequence_r1 = common.read_input_file(self.r1_path)
+        input_sequence_r2 = common.read_input_file(self.r2_path)
 
-    def test_right_transformed_test(self):
-        """In test directories read Trios(uid, seq, score) must be correctly transformed"""
-        input_entries = os.listdir(self.input_dir_path)
-        input_files = [
-            os.path.join(self.input_dir_path, entry)
-            for entry in input_entries
-            if os.path.isfile(os.path.join(self.input_dir_path, entry))
-        ]
+        # load only lines ending with 1
+        r1_outputs: list[str] = []
+        r2_outputs: list[str] = []
+        with open(self.output_test_file, "r") as f1:
+            next(f1)  # header
+            for line in f1:
+                stripped_line = line.strip()
+                if int(stripped_line[-1]) == 1:
+                    r1_output, r2_output = common.process_line(self.read_separator, stripped_line)
+                    r1_outputs.append(r1_output)
+                    r2_outputs.append(r2_output)
+        used_indices_r1 = set()  # Set to track used indices from input_sequence_r1
+        used_indices_r2 = set()
+        for output_pos in range(len(r1_outputs)):
+            found = False  # Flag to check if i_r1 is found at the beginning of any string in r1_outputs
+            for pos_r1 in range(len(input_sequence_r1)):
+                # Check if i_r1 is at the beginning, only appears once at the start, and has not been used yet
+                if r1_outputs[output_pos].startswith(input_sequence_r1[pos_r1]) and pos_r1 not in used_indices_r1:
+                    if r2_outputs[output_pos].startswith(input_sequence_r2[pos_r1]) and pos_r1 not in used_indices_r2:
+                        used_indices_r1.add(pos_r1)  # Mark this pos_r1 as used
+                        used_indices_r2.add(pos_r1)
+                        break
+        self.assertEqual(used_indices_r1, used_indices_r2)
 
-        read_1_input = input_files.pop(0) if "_R1" in input_files[0] else input_files[1]
-        read_2_input = input_files[0]
+    def test_row_structure_test(self):
+        with open(self.output_test_file, "r") as f1:
+            next(f1)  # Skip the header
+            for line_number, line in enumerate(f1, start=2):  # Start counting from line 2
+                parts = line.strip().split()
 
-        train_dir = f"{self.output_dir_path}/test"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        read_1_output = file_paths[0]
-        read_2_output = file_paths[1]
+                # Assert that the separator is present
+                self.assertIn(
+                    self.read_separator, parts, f"Separator '{self.read_separator}' not found in line {line_number}"
+                )
 
-        # 1. read
-        file_input = common.read_input_file(read_1_input)
-        file_output = common.read_output_file(read_1_output)
+                # Find the index of the separator and assert structure
+                sep_index = parts.index(self.read_separator)
+                self.assertNotEqual(sep_index, 0, f"Separator is the first element in line {line_number}")
+                self.assertNotEqual(
+                    sep_index, len(parts) - 1, f"Separator is the last element before the integer in line {line_number}"
+                )
 
-        for key in file_output.keys():
-            self.assertEqual(file_input[key][0], file_output[key][0], msg=f"Seq in read {key} are not equal")
-            self.assertEqual(file_input[key][1], file_output[key][1], msg=f"Score in read {key} are not equal")
+                # Check sequences before the separator
+                self.assertTrue(
+                    all(is_valid_sequence(seq) for seq in parts[:sep_index]),
+                    f"Invalid nucleotide sequence before separator in line {line_number}",
+                )
 
-        # 2. read
-        file_input = common.read_input_file(read_2_input)
-        file_output = common.read_output_file(read_2_output)
-        for key in file_output.keys():
-            self.assertEqual(file_input[key][0], file_output[key][0], msg=f"Seq in read {key} are not equal")
-            self.assertEqual(file_input[key][1], file_output[key][1], msg=f"Score in read {key} are not equal")
+                # Check sequences after the separator and before the last element
+                self.assertTrue(
+                    all(is_valid_sequence(seq) for seq in parts[sep_index + 1 : -1]),
+                    f"Invalid nucleotide sequence after separator in line {line_number}",
+                )
 
-    def test_all_uids_train(self):
-        """In train directory, both reads must contain same uids"""
-        train_dir = f"{self.output_dir_path}/train"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        read_1_output = file_paths[0]
-        read_2_output = file_paths[1]
-
-        read_1_uids = common.get_read_uid_from_output(read_1_output)
-        read_2_uids = common.get_read_uid_from_output(read_2_output)
-
-        for item in read_1_uids:
-            self.assertTrue(item in read_2_uids, msg=f"item {item} in reads_1 not in reads_2")
-
-    def test_all_uids_test(self):
-        """In test directory, both reads must contain same uids"""
-        train_dir = f"{self.output_dir_path}/test"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        read_1_output = file_paths[0]
-        read_2_output = file_paths[1]
-
-        read_1_uids = common.get_read_uid_from_output(read_1_output)
-        read_2_uids = common.get_read_uid_from_output(read_2_output)
-
-        for item in read_1_uids:
-            self.assertTrue(item in read_2_uids, msg=f"uid {item} in reads_1 not in reads_2")
-
-    def test_read_uid_scope(self):
-        """Cannot happen that some read uid from train scope is in test scope or vice versa"""
-        train_dir = f"{self.output_dir_path}/train"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        train_read_1_output = file_paths[0]
-        train_read_2_output = file_paths[1]
-
-        train_dir = f"{self.output_dir_path}/test"
-        entries = os.listdir(train_dir)
-        file_paths = [
-            os.path.join(train_dir, entry) for entry in entries if os.path.isfile(os.path.join(train_dir, entry))
-        ]
-        test_read_1_output = file_paths[0]
-        test_read_2_output = file_paths[1]
-
-        train_read_1_uids = common.get_read_uid_from_output(train_read_1_output)
-        test_read_2_uids = common.get_read_uid_from_output(test_read_2_output)
-
-        for item in train_read_1_uids:
-            self.assertTrue(item not in test_read_2_uids, msg=f"uid {item} in train is in test")
+                # Assert the last element is an integer
+                self.assertTrue(parts[-1].isdigit(), f"Last element in line {line_number} is not an integer")

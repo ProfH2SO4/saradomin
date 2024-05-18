@@ -70,7 +70,7 @@ def run():
         parsed_config.FASTQ_READ_2,
         parsed_config.OUTPUT_DIR,
         parsed_config.KMER,
-        parsed_config.TRAIN_DATA_PERCENTAGE,
+        parsed_config.TRAIN_DATA_FRACTION,
         parsed_config.NEGATIVE_TRAIN_SAMPLES,
         negative_test_samples=parsed_config.NEGATIVE_TEST_SAMPLES,
         version_=__version__,

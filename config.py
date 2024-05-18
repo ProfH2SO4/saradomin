@@ -1,10 +1,10 @@
-FASTQ_READ_1 = "./test_data/fastq/hg19/HIC_HEAD_R1.fastq"
-FASTQ_READ_2 = "./test_data/fastq/hg19/HIC_HEAD_R2.fastq"
+FASTQ_READ_1 = "./test_data/fastq/SRR28476183/s_1_50k.fastq"
+FASTQ_READ_2 = "./test_data/fastq/SRR28476183/s_2_50k.fastq"
 OUTPUT_DIR = "./output"
 
 KMER = 3
 
-TRAIN_DATA_PERCENTAGE = 0.9
+TRAIN_DATA_FRACTION = 0.9
 NEGATIVE_TRAIN_SAMPLES = 0.5
 NEGATIVE_TEST_SAMPLES = 0.5
 

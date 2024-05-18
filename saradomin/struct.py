@@ -7,7 +7,7 @@ class Config:
     FASTQ_READ_2: str
     OUTPUT_DIR: str
     KMER: int
-    TRAIN_DATA_PERCENTAGE: int
+    TRAIN_DATA_FRACTION: float
     NEGATIVE_TRAIN_SAMPLES: float
     NEGATIVE_TEST_SAMPLES: float
     LOG_CONFIG: dict

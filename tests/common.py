@@ -1,50 +1,53 @@
-from saradomin.transform import encode_sequence, convert_ascii_score_to_int
+import os
 
 
-def get_read_uid_from_output(filename) -> list[int]:
-    uids: list[int] = []
-    with open(filename, "r") as file:
-        # Skip header lines starting with '#'
-        lines = [line.strip() for line in file if not line.startswith("#")]
+def process_line(splitter: str, line: str):
+    # Remove the tab and following characters which are at the end
+    line = line.rstrip().rsplit("\t", 1)[0]
 
-    for i in range(len(lines)):
-        if lines[i].isdigit():  # Check if the line contains UID
-            uid = int(lines[i])
-            uids.append(uid)
-    return uids
+    # Split the line by the specified splitter
+    parts = line.split(splitter)
 
+    # Assuming that each segment may have spaces between triplets, we clean and rejoin them
+    def clean_and_join(part):
+        # Split by spaces, filter empty strings if any, and join back without spaces
+        return " ".join("".join(part.split()).split())
 
-def read_output_file(filename):
-    data = {}
-    with open(filename, "r") as file:
-        # Skip header lines starting with '#'
-        lines = [line.strip() for line in file if not line.startswith("#")]
+    # Process each part by cleaning spaces and joining as required
+    r1 = clean_and_join(parts[0])
+    r2 = clean_and_join(parts[1])
 
-    # Parse the data
-    i = 0
-    while i < len(lines):
-        if lines[i].isdigit():  # Check if the line contains UID
-            uid = int(lines[i])
-            nucleotides = eval(lines[i + 1])  # Convert string representation of list to list
-            scores = eval(lines[i + 2])
-            data[uid] = [nucleotides, scores]
-            i += 3  # Move to the next UID
-        else:
-            i += 1  # Increment index to continue through the list
-
-    return data
+    return r1, r2
 
 
-def read_input_file(fastq_read_path: str) -> dict:
+def get_first_file_path(directory):
+    """
+    This function takes a directory path as input and returns the full path of the first file found in that directory.
+    If there are no files in the directory, it returns None.
+    """
+    # Check if the directory exists
+    if not os.path.exists(directory):
+        print("Directory does not exist.")
+        return None
+
+    # Iterate over the entries in the directory
+    for entry in os.listdir(directory):
+        # Construct the full path of the entry
+        full_path = os.path.join(directory, entry)
+        # Check if this entry is a file
+        if os.path.isfile(full_path):
+            return full_path
+
+    # Return None if no files are found
+    return None
+
+
+def read_input_file(fastq_read_path: str) -> list[str]:
     """
     Saves a modified FASTQ read to a specified output file.
     The saved values looks like this:
-    0
-    [4, 0, 1 ,3]
-    [35, 60, 60]
     """
-    read_id_counter: dict[int, str] = {}
-    uid_counter: int = 0
+    read_sequences: list[str] = []
     with open(fastq_read_path, "r") as fastq_file:
         for line in fastq_file:
             if line.startswith("@"):
@@ -52,17 +55,5 @@ def read_input_file(fastq_read_path: str) -> dict:
                 sequence_line = next(fastq_file).strip()  # Nucleotide sequence
                 next(fastq_file)  # Skip the '+' line
                 quality_line = next(fastq_file).strip()  # PHRED quality scores
-
-                if read_id not in read_id_counter.values():
-                    read_id_counter[uid_counter] = []
-                    # encode the entire sequence
-                    read_id_counter[uid_counter].append(encode_sequence(sequence_line))
-                    read_id_counter[uid_counter].append(convert_ascii_score_to_int(quality_line))
-                    uid_counter += 1
-
-                if read_id in read_id_counter.values():
-                    # encode the entire sequence
-                    read_id_counter[uid_counter].append(encode_sequence(sequence_line))
-                    read_id_counter[uid_counter].append(convert_ascii_score_to_int(quality_line))
-
-    return read_id_counter
+                read_sequences.append(sequence_line)
+    return read_sequences
