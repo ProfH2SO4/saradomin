@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import config
 
 from . import struct as st, log
-from .common import create_file_if_not_exists
+from .common import create_file_if_not_exists, check_read_similarity, remove_duplicate_lines
 from .transform import transform_data_to_vectors
 
 
@@ -72,7 +72,11 @@ def run():
         parsed_config.KMER,
         parsed_config.TRAIN_DATA_FRACTION,
         parsed_config.NEGATIVE_TRAIN_SAMPLES,
-        negative_test_samples=parsed_config.NEGATIVE_TEST_SAMPLES,
+        negative_test_fraction=parsed_config.NEGATIVE_TEST_SAMPLES,
         version_=__version__,
     )
+
+    remove_duplicate_lines(f"{parsed_config.OUTPUT_DIR}/train/train.tsv",
+                           f"{parsed_config.OUTPUT_DIR}/train/train_2.tsv")
+    #check_read_similarity(f"{parsed_config.OUTPUT_DIR}/train/train.tsv")
     log.info("------ END  -------")

@@ -339,8 +339,8 @@ def transform_data_to_vectors(
     output_dir: str,
     kmer: int,
     train_data_fraction: float,
-    negative_train_samples: float,  # CORRECT_TRAIN_PAIR_PERCENTAGE
-    negative_test_samples: float,
+    negative_train_fraction: float,  # CORRECT_TRAIN_PAIR_PERCENTAGE
+    negative_test_fraction: float,
     version_: list[int],
 ) -> None:
     """
@@ -350,9 +350,9 @@ def transform_data_to_vectors(
 
     :param fastq_dir: Path to the directory containing the FASTQ files.
     :param output_dir: Directory where the transformed vector output will be stored.
-    :param train_data_fraction: Percentage of the total data to be used as training data.
-    :param negative_test_samples: Percentage of correct pairs to keep in the training dataset.
-    :param negative_train_samples: Percentage of correct pairs to keep in the testing dataset.
+    :param train_data_fraction: Fraction of the total data to be used as training data.
+    :param negative_test_fraction: Fraction of correct pairs to keep in the training dataset.
+    :param negative_train_fraction: Fraction of correct pairs to keep in the testing dataset.
     :param version_: A list of integers specifying the version of the processing algorithm or tools used.
     :return: None. The function writes the output directly to the specified directory.
     """
@@ -379,5 +379,5 @@ def transform_data_to_vectors(
 
     split_file(train_file_path, test_path, train_data_fraction, number_of_reads)
 
-    common.create_negative_samples(train_file_path, negative_train_samples)
-    common.create_negative_samples(test_path, negative_test_samples)
+    common.create_negative_samples(train_file_path, negative_train_fraction)
+    common.create_negative_samples(test_path, negative_test_fraction)

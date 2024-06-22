@@ -13,6 +13,43 @@ def delete_directory_if_exists(dir_path):
         except OSError as e:
             log.warning(f"Error: {dir_path} : {e.strerror}")
 
+def delete_file(file_path: str) -> None:
+    """
+    Delete a file at the specified path.
+
+    :param file_path: Path to the file to be deleted.
+    """
+    try:
+        os.remove(file_path)
+        log.debug(f"File {file_path} has been deleted successfully.")
+    except FileNotFoundError:
+        log.warning(f"File {file_path} not found.")
+    except PermissionError:
+        log.warning(f"Permission denied: Unable to delete {file_path}.")
+    except Exception as e:
+        log.warning(f"Error occurred while deleting {file_path}: {e}")
+
+
+def rename_file(current_file_path: str, new_file_path: str) -> None:
+    """
+    Rename a file from current_file_path to new_file_path.
+
+    :param current_file_path: Path to the current file.
+    :param new_file_path: Path to the new file name.
+    """
+    try:
+        os.rename(current_file_path, new_file_path)
+        print(f"File has been renamed from {current_file_path} to {new_file_path}.")
+    except FileNotFoundError:
+        print(f"File {current_file_path} not found.")
+    except FileExistsError:
+        print(f"File {new_file_path} already exists.")
+    except PermissionError:
+        print(f"Permission denied: Unable to rename {current_file_path}.")
+    except Exception as e:
+        print(f"Error occurred while renaming {current_file_path} to {new_file_path}: {e}")
+
+
 
 def create_dir(dir_path) -> None:
     # Check if the directory exists, and create it if it doesn't
@@ -187,7 +224,7 @@ def get_shuffled_values_only(d, fraction_fixed):
     return values_to_shuffle
 
 
-def create_negative_samples(file_path: str, fraction_of_negative_samples) -> None:
+def create_negative_samples(file_path: str, fraction_of_negative_samples: float) -> None:
     with open(file_path, "r") as file:
         lines = file.readlines()
 
@@ -215,3 +252,55 @@ def create_negative_samples(file_path: str, fraction_of_negative_samples) -> Non
     with open(file_path, "w") as file:
         file.write(header)  # Write the header back first
         file.writelines(data)  # Then write the data including new negative samples
+
+
+def check_if_sim_line(path_to_file: str, line_to_f: str, line_to_f_pos: int, count_same, count_similar: int) -> tuple:
+    line_position = 0
+    line_to_f_split = line_to_f.split('\t')
+    with open(path_to_file, 'r') as f:
+        next(f)
+        for line in f:
+            line_position += 1
+            if line_to_f_split[0] == line.split('\t')[0] and line_position != line_to_f_pos:
+                if line == line_to_f:
+                    log.debug(f"SAME line_to_f_pos {line_to_f_pos} line_pos {line_position}")
+                    count_same += 1
+                else:
+                    log.debug(f"SIMILAR line_to_f_pos {line_to_f_pos} line_pos {line_position}")
+                    count_similar += 1
+
+    return count_same, count_similar
+
+
+def check_read_similarity(path_to_file: str) -> None:
+    count_same = 0
+    count_similar = 0
+    line_position = 0
+    with open(path_to_file, 'r') as f:
+        next(f)
+        for line in f:
+            line_position += 1
+            count_same, count_similar = check_if_sim_line(path_to_file, line, line_position, count_same, count_similar)
+
+            log.debug(f"line_position {line_position} Done, num_similar_reads {count_similar} num_same_reads {count_same}")
+    log.debug(f"similar_sequences {count_similar}")
+
+
+def remove_duplicate_lines(input_file_path: str, output_file_path: str) -> None:
+    """
+    Remove duplicate lines from a file and write the unique lines to a new file.
+
+    :param input_file_path: Path to the input file with possible duplicate lines.
+    :param output_file_path: Path to the output file where unique lines will be written.
+    """
+    unique_lines = set()
+
+    with open(input_file_path, 'r') as infile:
+        with open(output_file_path, 'w') as outfile:
+            for line in infile:
+                if line not in unique_lines:
+                    outfile.write(line)
+                    unique_lines.add(line)
+    delete_file(input_file_path)
+    rename_file(output_file_path, new_file_path=input_file_path)
+
