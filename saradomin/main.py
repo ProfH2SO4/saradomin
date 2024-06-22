@@ -78,5 +78,6 @@ def run():
 
     remove_duplicate_lines(f"{parsed_config.OUTPUT_DIR}/train/train.tsv",
                            f"{parsed_config.OUTPUT_DIR}/train/train_2.tsv")
-    #check_read_similarity(f"{parsed_config.OUTPUT_DIR}/train/train.tsv")
+    remove_duplicate_lines(f"{parsed_config.OUTPUT_DIR}/test/test.tsv",
+                           f"{parsed_config.OUTPUT_DIR}/test/test_2.tsv")
     log.info("------ END  -------")
