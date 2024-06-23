@@ -373,8 +373,9 @@ def transform_data_to_vectors(
     common.create_dir(test_dir)
 
     train_file_path: str = f"{train_dir}/{file_r1_name}"
+    train_file_temp_path: str = f"{train_dir}/temp.tsv"
     number_of_reads: int = transform_to_nn(fastq_read_1, fastq_read_2, train_file_path, kmer, version_)
-
+    number_of_reads = common.remove_duplicate_lines(train_file_path, train_file_temp_path)
     test_path: str = f"{test_dir}/test.tsv"
 
     split_file(train_file_path, test_path, train_data_fraction, number_of_reads)

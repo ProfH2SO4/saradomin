@@ -13,6 +13,7 @@ def delete_directory_if_exists(dir_path):
         except OSError as e:
             log.warning(f"Error: {dir_path} : {e.strerror}")
 
+
 def delete_file(file_path: str) -> None:
     """
     Delete a file at the specified path.
@@ -48,7 +49,6 @@ def rename_file(current_file_path: str, new_file_path: str) -> None:
         print(f"Permission denied: Unable to rename {current_file_path}.")
     except Exception as e:
         print(f"Error occurred while renaming {current_file_path} to {new_file_path}: {e}")
-
 
 
 def create_dir(dir_path) -> None:
@@ -256,12 +256,12 @@ def create_negative_samples(file_path: str, fraction_of_negative_samples: float)
 
 def check_if_sim_line(path_to_file: str, line_to_f: str, line_to_f_pos: int, count_same, count_similar: int) -> tuple:
     line_position = 0
-    line_to_f_split = line_to_f.split('\t')
-    with open(path_to_file, 'r') as f:
+    line_to_f_split = line_to_f.split("\t")
+    with open(path_to_file, "r") as f:
         next(f)
         for line in f:
             line_position += 1
-            if line_to_f_split[0] == line.split('\t')[0] and line_position != line_to_f_pos:
+            if line_to_f_split[0] == line.split("\t")[0] and line_position != line_to_f_pos:
                 if line == line_to_f:
                     log.debug(f"SAME line_to_f_pos {line_to_f_pos} line_pos {line_position}")
                     count_same += 1
@@ -276,17 +276,19 @@ def check_read_similarity(path_to_file: str) -> None:
     count_same = 0
     count_similar = 0
     line_position = 0
-    with open(path_to_file, 'r') as f:
+    with open(path_to_file, "r") as f:
         next(f)
         for line in f:
             line_position += 1
             count_same, count_similar = check_if_sim_line(path_to_file, line, line_position, count_same, count_similar)
 
-            log.debug(f"line_position {line_position} Done, num_similar_reads {count_similar} num_same_reads {count_same}")
+            log.debug(
+                f"line_position {line_position} Done, num_similar_reads {count_similar} num_same_reads {count_same}"
+            )
     log.debug(f"similar_sequences {count_similar}")
 
 
-def remove_duplicate_lines(input_file_path: str, output_file_path: str) -> None:
+def remove_duplicate_lines(input_file_path: str, output_file_path: str) -> int:
     """
     Remove duplicate lines from a file and write the unique lines to a new file.
 
@@ -295,12 +297,12 @@ def remove_duplicate_lines(input_file_path: str, output_file_path: str) -> None:
     """
     unique_lines = set()
 
-    with open(input_file_path, 'r') as infile:
-        with open(output_file_path, 'w') as outfile:
+    with open(input_file_path, "r") as infile:
+        with open(output_file_path, "w") as outfile:
             for line in infile:
                 if line not in unique_lines:
                     outfile.write(line)
                     unique_lines.add(line)
     delete_file(input_file_path)
     rename_file(output_file_path, new_file_path=input_file_path)
-
+    return len(unique_lines)
